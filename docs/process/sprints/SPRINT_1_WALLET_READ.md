@@ -204,3 +204,16 @@ Mitigation: No value, offer, floor, rarity, or trading language.
 - Should ENS support be included now or later?
 - Should the first read use only structured logic, or include AI after the core profile works?
 - What minimum number of visible NFTs is enough for a useful read?
+
+## Implementation Log
+
+### 2026-05-26 — First vertical slice shipped
+
+- Added /wallet page.
+- Added /api/wallet/read route.
+- Added fetchWalletNfts helper in lib/jpgs/opensea.ts.
+- Reused collection metadata and taste classification helpers.
+- Verified TypeScript passes.
+- Verified valid wallet API response returns topCollections and tasteSignals.
+- Verified invalid wallet states return errors.
+- Confirmed JPG Match collection search still returns expected results.
