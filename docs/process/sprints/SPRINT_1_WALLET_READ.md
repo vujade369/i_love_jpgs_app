@@ -217,3 +217,14 @@ Mitigation: No value, offer, floor, rarity, or trading language.
 - Verified valid wallet API response returns topCollections and tasteSignals.
 - Verified invalid wallet states return errors.
 - Confirmed JPG Match collection search still returns expected results.
+
+### 2026-05-26 — Improved wallet identity suggestions
+
+- Added deterministic ranking for wallet identity suggestions instead of relying on OpenSea ordering.
+- Normalized ENS, OpenSea username, hyphen, underscore, space, and compact identity forms for better matching.
+- Improved partial matching so known profile-style inputs appear earlier while typing.
+- Merged duplicate account suggestions by address and preserved stronger profile fields.
+- Added avatar fallback support across profile_image_url, image_url, avatar_url, and avatar fields.
+- Kept /api/wallet/suggest capped at 6 returned suggestions and identity-only; it does not fetch NFTs.
+- Verified raw wallet input, ENS input, OpenSea profile input, suggestion selection, Try sample, and JPG Match collection search.
+- Verified TypeScript passes.
