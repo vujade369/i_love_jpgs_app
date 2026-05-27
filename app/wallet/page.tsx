@@ -74,6 +74,7 @@ type WalletReadErrorResponse = Partial<WalletReadResponse> & {
 
 type ReadState = "idle" | "loading" | "success" | "empty" | "error";
 type SuggestState = "idle" | "loading" | "ready";
+type ActiveWalletView = "combined" | string;
 
 type WalletSuggestion = {
   label: string;
@@ -109,8 +110,10 @@ const READ_LABELS: Record<string, string> = {
 export default function WalletReadPage() {
   const [wallet, setWallet] = useState("");
   const [walletSet, setWalletSet] = useState<string[]>([]);
+  const [activeView, setActiveView] = useState<ActiveWalletView>("combined");
   const [state, setState] = useState<ReadState>("idle");
   const [profile, setProfile] = useState<WalletReadResponse | null>(null);
+  const [walletSources, setWalletSources] = useState<SourceWalletMetadata[]>([]);
   const [errorSources, setErrorSources] = useState<SourceWalletMetadata[]>([]);
   const [error, setError] = useState("");
   const [resolvedWallet, setResolvedWallet] = useState("");
@@ -122,14 +125,21 @@ export default function WalletReadPage() {
   const requestSeq = useRef(0);
   const didHydrateUrl = useRef(false);
 
-  async function readWalletSet(inputs: string[], options: { syncUrl?: boolean } = {}) {
+  async function readWalletSet(
+    inputs: string[],
+    options: { syncUrl?: boolean; activeView?: ActiveWalletView } = {},
+  ) {
     const nextInputs = normalizeWalletInputs(inputs);
+    const nextActiveView = normalizeActiveWalletView(options.activeView ?? activeView, nextInputs);
+    const readInputs = activeReadInputs(nextInputs, nextActiveView);
 
     if (nextInputs.length === 0) {
       setWalletSet([]);
+      setActiveView("combined");
       setState("idle");
       setError("");
       setProfile(null);
+      setWalletSources([]);
       setErrorSources([]);
       if (options.syncUrl !== false) updateWalletUrl([]);
       return;
@@ -138,6 +148,7 @@ export default function WalletReadPage() {
     const requestId = requestSeq.current + 1;
     requestSeq.current = requestId;
     setWalletSet(nextInputs);
+    setActiveView(nextActiveView);
     if (options.syncUrl !== false) updateWalletUrl(nextInputs);
     setState("loading");
     setError("");
@@ -146,7 +157,7 @@ export default function WalletReadPage() {
 
     try {
       const params = new URLSearchParams();
-      nextInputs.forEach((input) => params.append("wallet", input));
+      readInputs.forEach((input) => params.append("wallet", input));
       const res = await fetch(`/api/wallet/read?${params.toString()}`);
       const data = (await res.json()) as WalletReadResponse | WalletReadErrorResponse;
 
@@ -156,6 +167,9 @@ export default function WalletReadPage() {
         setState("error");
         setError(data.error || "The wallet read failed.");
         setErrorSources(data.sourceWallets ?? []);
+        setWalletSources((currentSources) =>
+          mergeWalletSources(currentSources, data.sourceWallets ?? [], nextInputs),
+        );
         return;
       }
 
@@ -163,10 +177,24 @@ export default function WalletReadPage() {
       setState(data.nftCount === 0 ? "empty" : "success");
       setErrorSources([]);
 
-      const canonicalInputs = canonicalWalletInputsFromResponse(data, nextInputs);
+      const canonicalReadInputs = canonicalWalletInputsFromResponse(data, readInputs);
+      const canonicalInputs =
+        nextActiveView === "combined"
+          ? canonicalWalletInputsFromResponse(data, nextInputs)
+          : replaceActiveWalletInput(nextInputs, nextActiveView, canonicalReadInputs[0] ?? readInputs[0]);
+      const canonicalActiveView = normalizeActiveWalletView(
+        nextActiveView === "combined" ? "combined" : canonicalReadInputs[0] ?? nextActiveView,
+        canonicalInputs,
+      );
+
+      setWalletSources((currentSources) =>
+        mergeWalletSources(currentSources, data.sourceWallets ?? [], canonicalInputs),
+      );
+      setActiveView(canonicalActiveView);
+
       if (!sameWalletInputs(canonicalInputs, nextInputs)) {
         setWalletSet(canonicalInputs);
-        updateWalletUrl(canonicalInputs);
+        if (options.syncUrl !== false) updateWalletUrl(canonicalInputs);
       }
     } catch {
       if (requestSeq.current !== requestId) return;
@@ -283,10 +311,15 @@ export default function WalletReadPage() {
     void readWalletSet(nextInputs);
   }
 
-  const sourceWallets = profile?.sourceWallets ?? errorSources;
+  function switchActiveView(nextActiveView: ActiveWalletView) {
+    void readWalletSet(walletSet, { activeView: nextActiveView });
+  }
+
+  const sourceWallets = walletSources.length > 0 ? walletSources : profile?.sourceWallets ?? errorSources;
   const includedSources = sourceWallets.filter((source) => source.status === "included");
   const sourceNotices = sourceWallets.filter((source) => source.status !== "included");
   const atWalletLimit = walletSet.length >= MAX_WALLETS;
+  const activeReadLabel = readLabelForView(walletSet, activeView);
 
   return (
     <main className="min-h-screen" style={{ background: "var(--jpgs-bg)", color: "var(--jpgs-text)" }}>
@@ -469,6 +502,13 @@ export default function WalletReadPage() {
             {atWalletLimit && (
               <p style={{ ...mutedTextStyle, fontSize: 12 }}>Two-wallet reads are the current limit.</p>
             )}
+            {includedSources.length === MAX_WALLETS && (
+              <WalletViewControls
+                activeView={activeView}
+                walletSet={walletSet}
+                onChange={switchActiveView}
+              />
+            )}
           </div>
         )}
       </section>
@@ -510,11 +550,11 @@ export default function WalletReadPage() {
 
         {state === "empty" && profile && (
           <Panel>
-            <WalletHeader profile={profile} />
+            <WalletHeader profile={profile} readLabel={activeReadLabel} walletSet={walletSet} activeView={activeView} />
             <div style={{ borderTop: "1px solid var(--jpgs-border)", marginTop: 22, paddingTop: 22 }}>
               <h2 style={panelTitleStyle}>No visible JPGs found.</h2>
               <p style={mutedTextStyle}>
-                {profile.walletCount && profile.walletCount > 1
+                {activeView === "combined" && walletSet.length > 1
                   ? "These wallets did not return visible JPG holdings from the current source."
                   : "This wallet did not return visible JPG holdings from the current source."}
               </p>
@@ -525,7 +565,7 @@ export default function WalletReadPage() {
         {state === "success" && profile && (
           <div style={{ display: "grid", gap: 18 }}>
             <Panel>
-              <WalletHeader profile={profile} />
+              <WalletHeader profile={profile} readLabel={activeReadLabel} walletSet={walletSet} activeView={activeView} />
             </Panel>
 
             <Panel>
@@ -618,6 +658,38 @@ function walletInputsFromSearch(search: string): string[] {
   return normalizeWalletInputs(new URLSearchParams(search).getAll("wallet"));
 }
 
+function normalizeActiveWalletView(activeView: ActiveWalletView, walletInputs: string[]): ActiveWalletView {
+  if (walletInputs.length < 2) return "combined";
+  if (activeView === "combined") return "combined";
+  return findWalletInput(walletInputs, activeView) ?? "combined";
+}
+
+function activeReadInputs(walletInputs: string[], activeView: ActiveWalletView): string[] {
+  if (activeView === "combined") return walletInputs;
+  const activeInput = findWalletInput(walletInputs, activeView);
+  return activeInput ? [activeInput] : walletInputs;
+}
+
+function replaceActiveWalletInput(
+  walletInputs: string[],
+  activeView: ActiveWalletView,
+  replacementInput?: string,
+): string[] {
+  if (activeView === "combined" || !replacementInput) return walletInputs;
+  const nextInputs = walletInputs.map((input) =>
+    sameWalletInput(input, activeView) ? replacementInput : input,
+  );
+  return normalizeWalletInputs(nextInputs);
+}
+
+function findWalletInput(walletInputs: string[], target: string): string | undefined {
+  return walletInputs.find((input) => sameWalletInput(input, target));
+}
+
+function sameWalletInput(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
 function normalizeWalletInputs(inputs: string[]): string[] {
   const seen = new Set<string>();
   const normalized: string[] = [];
@@ -642,9 +714,62 @@ function canonicalWalletInputsFromResponse(profile: WalletReadResponse, fallback
   return normalizeWalletInputs(sourceInputs.length > 0 ? sourceInputs : fallbackInputs);
 }
 
+function mergeWalletSources(
+  currentSources: SourceWalletMetadata[],
+  incomingSources: SourceWalletMetadata[],
+  walletInputs: string[],
+): SourceWalletMetadata[] {
+  const currentByKey = sourceLookup(currentSources);
+  const incomingByKey = sourceLookup(incomingSources);
+
+  return walletInputs.map((input) => {
+    const key = input.toLowerCase();
+    return (
+      incomingByKey.get(key) ??
+      currentByKey.get(key) ??
+      {
+        id: `wallet-input:${key}`,
+        input,
+        status: "included",
+        nftCount: 0,
+        collectionCount: 0,
+      }
+    );
+  });
+}
+
+function sourceLookup(sources: SourceWalletMetadata[]): Map<string, SourceWalletMetadata> {
+  const lookup = new Map<string, SourceWalletMetadata>();
+  for (const source of sources) {
+    [source.input, source.address, source.shortWallet]
+      .filter((value): value is string => Boolean(value?.trim()))
+      .forEach((value) => lookup.set(value.toLowerCase(), source));
+  }
+  return lookup;
+}
+
 function sameWalletInputs(a: string[], b: string[]): boolean {
   if (a.length !== b.length) return false;
   return a.every((input, index) => input.toLowerCase() === b[index]?.toLowerCase());
+}
+
+function readLabelForView(walletInputs: string[], activeView: ActiveWalletView): string {
+  if (walletInputs.length > 1 && activeView !== "combined") return "Individual Read";
+  if (walletInputs.length > 1) return "Combined Read";
+  return "Wallet Read";
+}
+
+function readDetailForView(
+  profile: WalletReadResponse,
+  walletInputs: string[],
+  activeView: ActiveWalletView,
+): string {
+  if (walletInputs.length > 1 && activeView !== "combined") {
+    return `Selected wallet from ${walletInputs.length} included wallets.`;
+  }
+
+  const walletCount = profile.walletCount ?? 1;
+  return walletCount > 1 ? `${walletCount} wallets included in one read.` : profile.wallet;
 }
 
 function updateWalletUrl(inputs: string[]) {
@@ -804,6 +929,71 @@ function WalletSourceNotices({
   );
 }
 
+function WalletViewControls({
+  activeView,
+  walletSet,
+  onChange,
+}: {
+  activeView: ActiveWalletView;
+  walletSet: string[];
+  onChange: (activeView: ActiveWalletView) => void;
+}) {
+  const options = [
+    { label: "Combined", value: "combined" },
+    ...walletSet.map((input, index) => ({ label: `Wallet ${index + 1}`, value: input })),
+  ];
+
+  return (
+    <div style={{ display: "grid", gap: 7, maxWidth: 520 }}>
+      <div
+        role="group"
+        aria-label="Wallet read view"
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 6,
+          padding: 4,
+          border: "1px solid var(--jpgs-border)",
+          borderRadius: 8,
+          background: "rgba(255,255,255,0.025)",
+        }}
+      >
+        {options.map((option) => {
+          const isActive =
+            option.value === "combined"
+              ? activeView === "combined"
+              : activeView !== "combined" && sameWalletInput(activeView, option.value);
+
+          return (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={isActive}
+              onClick={() => onChange(option.value)}
+              style={{
+                flex: "1 1 120px",
+                minHeight: 34,
+                border: isActive ? "1px solid rgba(255,255,255,0.16)" : "1px solid transparent",
+                borderRadius: 6,
+                background: isActive ? "var(--jpgs-accent)" : "transparent",
+                color: isActive ? "white" : "var(--jpgs-muted)",
+                cursor: "pointer",
+                fontSize: 12,
+                fontWeight: isActive ? 600 : 400,
+              }}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+      <p style={{ ...mutedTextStyle, fontSize: 12 }}>
+        Combined reads included wallets as one visible collection set. Individual reads isolate one wallet.
+      </p>
+    </div>
+  );
+}
+
 function buildWalletRead(profile: WalletReadResponse): WalletReadCopy {
   const subject = profile.walletCount && profile.walletCount > 1 ? "This wallet set" : "This wallet";
   const signalPhrases = profile.tasteSignals
@@ -865,7 +1055,17 @@ function WalletReadSummary({ profile }: { profile: WalletReadResponse }) {
   );
 }
 
-function WalletHeader({ profile }: { profile: WalletReadResponse }) {
+function WalletHeader({
+  profile,
+  readLabel,
+  walletSet,
+  activeView,
+}: {
+  profile: WalletReadResponse;
+  readLabel: string;
+  walletSet: string[];
+  activeView: ActiveWalletView;
+}) {
   const isCappedRead = profile.debug
     ? !profile.debug.complete || profile.debug.stoppedReason === "max_reached"
     : false;
@@ -880,10 +1080,10 @@ function WalletHeader({ profile }: { profile: WalletReadResponse }) {
     <div style={{ display: "grid", gap: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
         <div style={{ minWidth: 0 }}>
-          <p style={eyebrowStyle}>{walletCount > 1 ? "Wallet set" : "Wallet"}</p>
+          <p style={eyebrowStyle}>{readLabel}</p>
           <h2 style={{ ...panelTitleStyle, fontFamily: "var(--font-geist-mono)" }}>{walletLine}</h2>
           <p style={{ ...mutedTextStyle, fontSize: 12, wordBreak: "break-all" }}>
-            {walletCount > 1 ? `${walletCount} wallets included in one read.` : profile.wallet}
+            {readDetailForView(profile, walletSet, activeView)}
           </p>
         </div>
         <div style={{ display: "flex", gap: 10 }}>
