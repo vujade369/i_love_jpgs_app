@@ -733,6 +733,46 @@ function mergeWalletSuggestions(
   };
 }
 
+async function enrichMissingSuggestionAvatars(
+  suggestions: WalletIdentitySuggestion[],
+): Promise<WalletIdentitySuggestion[]> {
+  const missingAvatarAddresses = Array.from(
+    new Set(
+      suggestions
+        .filter((suggestion) => !suggestion.avatarUrl)
+        .map((suggestion) => normalizeAddress(suggestion.address))
+        .filter((address): address is string => Boolean(address)),
+    ),
+  );
+
+  if (missingAvatarAddresses.length === 0) return suggestions;
+
+  const accounts = await Promise.all(
+    missingAvatarAddresses.map(async (address) => {
+      const account = await fetchAccount(address);
+      return account ? accountToSuggestion(account) : null;
+    }),
+  );
+  const byAddress = new Map<string, WalletIdentitySuggestion>();
+
+  for (const accountSuggestion of accounts) {
+    const address = normalizeAddress(accountSuggestion?.address);
+    if (!address || !accountSuggestion) continue;
+    const existing = byAddress.get(address);
+    byAddress.set(
+      address,
+      existing ? mergeWalletSuggestions(existing, accountSuggestion) : accountSuggestion,
+    );
+  }
+
+  return suggestions.map((suggestion) => {
+    if (suggestion.avatarUrl) return suggestion;
+    const address = normalizeAddress(suggestion.address);
+    const accountSuggestion = address ? byAddress.get(address) : undefined;
+    return accountSuggestion ? mergeWalletSuggestions(suggestion, accountSuggestion) : suggestion;
+  });
+}
+
 function suggestionTextParts(suggestion: WalletIdentitySuggestion): string[] {
   return [
     suggestion.displayName,
@@ -895,7 +935,9 @@ export async function searchWalletIdentities(
     }),
   );
 
-  return Array.from(suggestions.values())
+  const rankedSuggestions = Array.from(suggestions.values())
     .sort((a, b) => rankWalletSuggestion(normalizedQuery, b) - rankWalletSuggestion(normalizedQuery, a))
     .slice(0, limit);
+
+  return enrichMissingSuggestionAvatars(rankedSuggestions);
 }
