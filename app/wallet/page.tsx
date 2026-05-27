@@ -86,7 +86,7 @@ type WalletSuggestion = {
   source: string;
 };
 
-const SAMPLE_WALLET = "0x5ffd8de19910efff95df729c54699aebcee8f747";
+const SAMPLE_WALLET = "0x16f3d833bb91aebb5066884501242d8b3c3b5e61";
 const WALLET_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const MAX_WALLETS = 2;
 const SUPPORTED_CHAIN_COPY = "Visible across supported chains: ethereum, base, polygon, arbitrum, optimism, zora.";
