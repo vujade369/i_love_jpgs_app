@@ -568,7 +568,7 @@ export default function WalletReadPage() {
         )}
 
         {state === "success" && profile && (
-          <div style={{ display: "grid", gap: 18 }}>
+          <div style={successBodyStyle}>
             <Panel>
               <WalletHeader
                 profile={profile}
@@ -579,75 +579,78 @@ export default function WalletReadPage() {
               />
             </Panel>
 
-            <Panel>
-              <WalletReadSummary profile={profile} />
-            </Panel>
+            <div style={readAndSupportStyle}>
+              <Panel style={readPanelStyle}>
+                <WalletReadSummary profile={profile} />
+              </Panel>
 
-            <Panel>
-              <SectionHeading title="Top collections" detail={`${profile.collectionCount} collections found`} />
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-                {profile.topCollections.map((collection) => (
-                  <a
-                    key={collection.slug}
-                    href={collection.openseaUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "56px 1fr",
-                      gap: 12,
-                      alignItems: "center",
-                      background: "rgba(255,255,255,0.03)",
-                      border: "1px solid var(--jpgs-border)",
-                      borderRadius: 8,
-                      padding: 10,
-                      textDecoration: "none",
-                      color: "var(--jpgs-text)",
-                    }}
-                  >
-                    <CollectionImage collection={collection} />
-                    <div style={{ minWidth: 0 }}>
-                      <p style={{ fontSize: 14, marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {collection.name}
-                      </p>
-                      <p style={{ color: "var(--jpgs-muted)", fontSize: 12 }}>
-                        {collection.count} held
-                      </p>
-                    </div>
-                  </a>
-                ))}
-              </div>
-            </Panel>
-
-            {profile.tasteSignals.length > 0 && (
-              <Panel>
-                <SectionHeading title="Taste signals" detail="Based on visible metadata" />
-                <div style={{ display: "grid", gap: 12 }}>
-                  {profile.tasteSignals.slice(0, 6).map((signal) => (
-                    <div
-                      key={signal.category}
+              <Panel style={supportPanelStyle}>
+                <SectionHeading title="Top collections" detail={`${profile.collectionCount} collections found`} />
+                <div style={collectionGridStyle}>
+                  {profile.topCollections.map((collection) => (
+                    <a
+                      key={collection.slug}
+                      href={collection.openseaUrl}
+                      target="_blank"
+                      rel="noreferrer"
                       style={{
+                        display: "grid",
+                        gridTemplateColumns: "64px minmax(0, 1fr)",
+                        gap: 14,
+                        alignItems: "center",
+                        background: "rgba(255,255,255,0.03)",
                         border: "1px solid var(--jpgs-border)",
                         borderRadius: 8,
-                        padding: 14,
-                        background: "rgba(255,255,255,0.025)",
+                        padding: 12,
+                        textDecoration: "none",
+                        color: "var(--jpgs-text)",
+                        minHeight: 90,
                       }}
                     >
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
-                        <h3 style={{ fontSize: 15, fontWeight: 500 }}>{signal.label}</h3>
-                        <span style={{ color: "var(--jpgs-muted)", fontSize: 12 }}>
-                          {signal.nftCount} JPGs
-                        </span>
+                      <CollectionImage collection={collection} size={64} />
+                      <div style={{ minWidth: 0 }}>
+                        <p style={{ fontSize: 14, marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {collection.name}
+                        </p>
+                        <p style={{ color: "var(--jpgs-muted)", fontSize: 12 }}>
+                          {collection.count} held
+                        </p>
                       </div>
-                      <p style={{ color: "var(--jpgs-muted)", fontSize: 13, lineHeight: 1.6 }}>
-                        Seen across{" "}
-                        {signal.collections.map((collection) => collection.name).join(", ")}
-                      </p>
-                    </div>
+                    </a>
                   ))}
                 </div>
               </Panel>
-            )}
+
+              {profile.tasteSignals.length > 0 && (
+                <Panel style={supportPanelStyle}>
+                  <SectionHeading title="Taste signals" detail="Based on visible metadata" />
+                  <div style={tasteSignalGridStyle}>
+                    {profile.tasteSignals.slice(0, 6).map((signal) => (
+                      <div
+                        key={signal.category}
+                        style={{
+                          border: "1px solid var(--jpgs-border)",
+                          borderRadius: 8,
+                          padding: "14px 16px",
+                          background: "rgba(255,255,255,0.018)",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
+                          <h3 style={{ fontSize: 15, fontWeight: 500 }}>{signal.label}</h3>
+                          <span style={{ color: "var(--jpgs-muted)", fontSize: 12 }}>
+                            {signal.nftCount} JPGs
+                          </span>
+                        </div>
+                        <p style={{ color: "var(--jpgs-muted)", fontSize: 13, lineHeight: 1.6 }}>
+                          Seen across{" "}
+                          {signal.collections.map((collection) => collection.name).join(", ")}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </Panel>
+              )}
+            </div>
           </div>
         )}
       </section>
@@ -1255,9 +1258,9 @@ function Metric({ label, value }: { label: string; value: number }) {
   );
 }
 
-function Panel({ children }: { children: React.ReactNode }) {
+function Panel({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <div style={{ background: "var(--jpgs-surface)", border: "1px solid var(--jpgs-border)", borderRadius: 8, padding: 22 }}>
+    <div style={{ ...panelShellStyle, ...style }}>
       {children}
     </div>
   );
@@ -1265,17 +1268,17 @@ function Panel({ children }: { children: React.ReactNode }) {
 
 function SectionHeading({ title, detail }: { title: string; detail: string }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline", marginBottom: 14 }}>
-      <h2 style={panelTitleStyle}>{title}</h2>
-      <p style={{ color: "var(--jpgs-muted)", fontSize: 12 }}>{detail}</p>
+    <div style={sectionHeadingStyle}>
+      <h2 style={{ ...panelTitleStyle, flex: "1 1 220px", marginBottom: 0 }}>{title}</h2>
+      <p style={sectionHeadingDetailStyle}>{detail}</p>
     </div>
   );
 }
 
-function CollectionImage({ collection }: { collection: TopCollection }) {
+function CollectionImage({ collection, size = 56 }: { collection: TopCollection; size?: number }) {
   if (!collection.imageUrl) {
     return (
-      <div style={imageFallbackStyle} aria-hidden="true">
+      <div style={{ ...imageFallbackStyle, width: size, height: size }} aria-hidden="true">
         {collection.name.slice(0, 2).toUpperCase()}
       </div>
     );
@@ -1285,10 +1288,62 @@ function CollectionImage({ collection }: { collection: TopCollection }) {
     <img
       src={collection.imageUrl}
       alt=""
-      style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 8, background: "rgba(255,255,255,0.04)" }}
+      style={{ width: size, height: size, objectFit: "cover", borderRadius: 8, background: "rgba(255,255,255,0.04)" }}
     />
   );
 }
+
+const panelShellStyle: React.CSSProperties = {
+  background: "var(--jpgs-surface)",
+  border: "1px solid var(--jpgs-border)",
+  borderRadius: 8,
+  padding: "clamp(18px, 3.6vw, 24px)",
+};
+
+const successBodyStyle: React.CSSProperties = {
+  display: "grid",
+  gap: "clamp(24px, 4vw, 34px)",
+};
+
+const readAndSupportStyle: React.CSSProperties = {
+  display: "grid",
+  gap: "clamp(16px, 2.5vw, 20px)",
+};
+
+const readPanelStyle: React.CSSProperties = {
+  padding: "clamp(24px, 5vw, 34px)",
+};
+
+const supportPanelStyle: React.CSSProperties = {
+  padding: "clamp(18px, 3vw, 22px)",
+};
+
+const collectionGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))",
+  gap: "clamp(12px, 2vw, 16px)",
+};
+
+const tasteSignalGridStyle: React.CSSProperties = {
+  display: "grid",
+  gap: "clamp(10px, 1.8vw, 12px)",
+};
+
+const sectionHeadingStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "6px 14px",
+  alignItems: "baseline",
+  flexWrap: "wrap",
+  marginBottom: 16,
+};
+
+const sectionHeadingDetailStyle: React.CSSProperties = {
+  color: "var(--jpgs-muted)",
+  fontSize: 12,
+  lineHeight: 1.4,
+  flex: "0 1 auto",
+};
 
 const eyebrowStyle: React.CSSProperties = {
   fontSize: 11,
