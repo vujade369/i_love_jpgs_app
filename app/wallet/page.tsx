@@ -89,6 +89,7 @@ type WalletSuggestion = {
 const SAMPLE_WALLET = "0x5ffd8de19910efff95df729c54699aebcee8f747";
 const WALLET_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const MAX_WALLETS = 2;
+const SUPPORTED_CHAIN_COPY = "Visible across supported chains: ethereum, base, polygon, arbitrum, optimism, zora.";
 
 type WalletReadCopy = {
   headline: string;
@@ -101,10 +102,10 @@ const READ_LABELS: Record<string, string> = {
   "PFP / Identity": "PFP culture",
   "Meme / Internet Culture": "meme culture",
   "Gaming / Worlds": "gaming and world-building objects",
-  "Access / Membership": "access and membership objects",
+  "Access / Membership": "access objects",
   Collectibles: "collectibles",
   "Music / Media": "music and media",
-  "Unsorted Signals": "visible collection clusters",
+  "Unsorted Signals": "unsorted JPGs",
 };
 
 export default function WalletReadPage() {
@@ -328,10 +329,10 @@ export default function WalletReadPage() {
           I Like JPGs
         </p>
         <h1 style={{ fontSize: 38, fontWeight: 300, lineHeight: 1.15, marginBottom: 14 }}>
-          Read a wallet by what it collects.
+          A wallet read for people who know the JPGs were never just JPGs.
         </h1>
         <p style={{ maxWidth: 560, color: "var(--jpgs-muted)", fontSize: 16, lineHeight: 1.7, marginBottom: 28 }}>
-          Enter a wallet, ENS, or OpenSea profile to see visible public collection signals across supported chains, grouped plainly.
+          Enter a wallet, ENS, or OpenSea profile to see the public collection signals hiding in plain sight.
         </p>
 
         <form onSubmit={handleSubmit} style={{ display: "flex", gap: 10, alignItems: "stretch", flexWrap: "wrap" }}>
@@ -349,7 +350,7 @@ export default function WalletReadPage() {
               onKeyDown={(event) => {
                 if (event.key === "Escape") setShowSuggestions(false);
               }}
-              placeholder={atWalletLimit ? "Two-wallet reads are the current limit." : "Search name, ENS, OpenSea profile, or wallet address"}
+              placeholder={atWalletLimit ? "Two-wallet reads are the current limit." : "Search a wallet, ENS, OpenSea profile, or collector name"}
               aria-label="Wallet, ENS, OpenSea username, or OpenSea profile URL"
               aria-expanded={showSuggestions}
               aria-controls="wallet-suggestions"
@@ -459,7 +460,7 @@ export default function WalletReadPage() {
               cursor: state === "loading" || atWalletLimit ? "not-allowed" : "pointer",
             }}
           >
-            {state === "loading" ? "Reading…" : atWalletLimit ? "Limit reached" : walletSet.length > 0 ? "Add wallet" : "Read wallet"}
+            {state === "loading" ? "Reading…" : atWalletLimit ? "Limit reached" : "Add wallet"}
           </button>
           <button
             type="button"
@@ -475,7 +476,7 @@ export default function WalletReadPage() {
               minHeight: 50,
             }}
           >
-            Try sample
+            Try a sample
           </button>
         </form>
 
@@ -585,7 +586,7 @@ export default function WalletReadPage() {
               </Panel>
 
               <Panel style={supportPanelStyle}>
-                <SectionHeading title="Top collections" detail={`${profile.collectionCount} collections found`} />
+                <SectionHeading title="Top collections" detail={`Top 12 of ${profile.collectionCount} visible collections`} />
                 <div style={collectionGridStyle}>
                   {profile.topCollections.map((collection) => (
                     <a
@@ -623,7 +624,7 @@ export default function WalletReadPage() {
 
               {profile.tasteSignals.length > 0 && (
                 <Panel style={supportPanelStyle}>
-                  <SectionHeading title="Taste signals" detail="Based on visible metadata" />
+                  <SectionHeading title="Taste signals" detail="Grouped from visible metadata" />
                   <div style={tasteSignalGridStyle}>
                     {profile.tasteSignals.slice(0, 6).map((signal) => (
                       <div
@@ -636,7 +637,7 @@ export default function WalletReadPage() {
                         }}
                       >
                         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
-                          <h3 style={{ fontSize: 15, fontWeight: 500 }}>{signal.label}</h3>
+                          <h3 style={{ fontSize: 15, fontWeight: 500 }}>{displayTasteSignalLabel(signal.label)}</h3>
                           <span style={{ color: "var(--jpgs-muted)", fontSize: 12 }}>
                             {signal.nftCount} JPGs
                           </span>
@@ -787,6 +788,10 @@ function shortWallet(wallet?: string): string {
 
 function sourceLabel(source: SourceWalletMetadata): string {
   return source.displayName || source.ens || source.username || source.shortWallet || source.address || source.input;
+}
+
+function displayTasteSignalLabel(label: string): string {
+  return label === "Unsorted Signals" ? "Unsorted JPGs" : label;
 }
 
 function includedSourceWallets(profile: WalletReadResponse): SourceWalletMetadata[] {
@@ -1054,12 +1059,12 @@ function WalletViewControls({
 }
 
 function buildWalletRead(profile: WalletReadResponse): WalletReadCopy {
-  const subject = profile.walletCount && profile.walletCount > 1 ? "This wallet set" : "This wallet";
+  const subject = profile.walletCount && profile.walletCount > 1 ? "These wallets" : "This wallet";
+  const subjectVerb = subject === "This wallet" ? "has" : "have";
   const signalPhrases = profile.tasteSignals
     .slice()
     .sort((a, b) => b.nftCount - a.nftCount)
     .map((signal) => READ_LABELS[signal.label] ?? signal.label.toLowerCase())
-    .filter((label) => label !== "visible collection clusters")
     .slice(0, 3);
 
   const proofCollections = profile.topCollections
@@ -1074,22 +1079,20 @@ function buildWalletRead(profile: WalletReadResponse): WalletReadCopy {
 
   let headline: string;
   if (signalPhrases.length > 1) {
-    headline = `${subject} reads like a collection pattern around ${formatList(signalPhrases)}.`;
+    headline = `${subject} ${subjectVerb} recognizable JPG taste: ${formatList(signalPhrases)} keep showing up as the main signals.`;
   } else if (signalPhrases.length === 1) {
-    headline = `${subject} leans toward ${signalPhrases[0]}.`;
+    headline = `${subject} ${subjectVerb} recognizable JPG taste: ${signalPhrases[0]} keeps showing up as the main signal.`;
   } else if (fallbackCollections.length > 1) {
-    headline = `${subject} appears clustered around ${formatList(fallbackCollections)}.`;
+    headline = `${subject} ${subject === "This wallet" ? "appears" : "appear"} clustered around ${formatList(fallbackCollections)}.`;
   } else if (fallbackCollections.length === 1) {
-    headline = `${subject} appears centered on ${fallbackCollections[0]}.`;
+    headline = `${subject} ${subject === "This wallet" ? "appears" : "appear"} centered on ${fallbackCollections[0]}.`;
   } else {
-    headline = `${subject} has a sparse visible collection pattern.`;
+    headline = `${subject} ${subjectVerb} a sparse visible collection pattern.`;
   }
 
   const body =
     proofCollections.length > 0
-      ? `The clearest proof is the repetition across ${formatList(proofCollections)}${
-          hasMoreCollections ? ", and other visible collection clusters" : ""
-        }.`
+      ? `The clearest proof is the repetition across ${formatProofList(proofCollections, hasMoreCollections)}.`
       : "There is not enough visible collection data to make a more specific read yet.";
 
   return { headline, body };
@@ -1100,6 +1103,17 @@ function formatList(items: string[]): string {
   if (items.length === 1) return items[0];
   if (items.length === 2) return `${items[0]} and ${items[1]}`;
   return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+}
+
+function formatProofList(collections: string[], hasMoreCollections: boolean): string {
+  if (!hasMoreCollections) return formatList(collections);
+  return formatListWithFinalItem(collections, "other visible collection clusters");
+}
+
+function formatListWithFinalItem(items: string[], finalItem: string): string {
+  if (items.length === 0) return finalItem;
+  if (items.length === 1) return `${items[0]} and ${finalItem}`;
+  return `${items.join(", ")}, and ${finalItem}`;
 }
 
 function WalletReadSummary({ profile }: { profile: WalletReadResponse }) {
@@ -1147,10 +1161,6 @@ function WalletHeader({
     ? !profile.debug.complete || profile.debug.stoppedReason === "max_reached"
     : false;
   const maxVisibleNfts = profile.debug?.maxVisibleNfts.toLocaleString() ?? "1,000";
-  const supportedChainNote = profile.debug?.chainsChecked.length
-    ? `Across supported chains: ${profile.debug.chainsChecked.join(", ")}.`
-    : "Across supported chains.";
-
   return (
     <div style={{ display: "grid", gap: 12 }}>
       <div>
@@ -1186,7 +1196,7 @@ function WalletHeader({
           </div>
         </div>
       </div>
-      <p style={{ ...mutedTextStyle, fontSize: 12 }}>{supportedChainNote}</p>
+      <p style={{ ...mutedTextStyle, fontSize: 12 }}>{SUPPORTED_CHAIN_COPY}</p>
       {isCappedRead && (
         <p style={{ ...mutedTextStyle, fontSize: 12 }}>
           This read is based on the first {maxVisibleNfts} visible NFTs returned by the current source.

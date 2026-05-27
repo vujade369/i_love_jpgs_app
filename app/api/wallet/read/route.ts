@@ -11,8 +11,9 @@ import {
 
 const WALLET_RE = /^0x[a-fA-F0-9]{40}$/;
 const MAX_WALLETS = 2;
-const MAX_VISIBLE_NFTS = 1000;
+const MAX_VISIBLE_NFTS = 3333;
 const MAX_COLLECTIONS_TO_ENRICH = 20;
+const TOP_COLLECTION_LIMIT = 12;
 
 type TopCollection = {
   slug: string;
@@ -242,8 +243,9 @@ async function resolveInput(input: string): Promise<SourceWalletMetadata> {
 
 async function fetchIncludedWallet(
   source: SourceWalletMetadata & { address: string; shortWallet: string; status: "included" },
+  maxVisibleNfts: number,
 ): Promise<WalletFetchSuccess | SourceWalletMetadata> {
-  const visible = await fetchWalletNfts(source.address, MAX_VISIBLE_NFTS);
+  const visible = await fetchWalletNfts(source.address, maxVisibleNfts);
 
   if (
     visible.nfts.length === 0 &&
@@ -317,7 +319,17 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const fetchRows = await Promise.all(includedSources.map(fetchIncludedWallet));
+  const fetchRows: Array<WalletFetchSuccess | SourceWalletMetadata> = [];
+  let remainingVisibleNfts = MAX_VISIBLE_NFTS;
+
+  for (const source of includedSources) {
+    const row = await fetchIncludedWallet(source, remainingVisibleNfts);
+    fetchRows.push(row);
+
+    if ("source" in row) {
+      remainingVisibleNfts = Math.max(0, remainingVisibleNfts - row.nfts.length);
+    }
+  }
   const allNfts: EnrichedWalletNft[] = [];
   const finalSourceWallets = sourceWallets.map((source) => {
     const fetched = fetchRows.find((row) =>
@@ -379,7 +391,7 @@ export async function GET(req: NextRequest) {
   const sortedCollectionRows = Array.from(collections.values()).sort((a, b) => b.count - a.count);
   const enriched = await enrichCollections(sortedCollectionRows.map((row) => row.slug));
 
-  const topCollections: TopCollection[] = sortedCollectionRows.slice(0, 8).map((row) => {
+  const topCollections: TopCollection[] = sortedCollectionRows.slice(0, TOP_COLLECTION_LIMIT).map((row) => {
     const meta = enriched.get(row.slug);
     const imageUrl = meta?.image_url || row.firstNftImage;
     return {
