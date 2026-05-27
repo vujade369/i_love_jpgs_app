@@ -523,3 +523,16 @@ Use clear selection rules. Favor older, quieter, visually available pieces that 
 - What minimum number of visible NFTs is enough for a useful read?
 - Should “From the Archive” be deterministic, randomized, or lightly refreshed?
 - How much source-wallet attribution is enough without making the page feel technical?
+### 2026-05-26 — Multi-wallet foundation
+
+- Added repeated wallet param support to `/api/wallet/read`.
+- Capped Track 1 wallet reads at two wallets.
+- Preserved single-wallet balance-based count semantics.
+- Added combined read metadata, source wallet records, wallet counts, and dedupe counts.
+- Added URL-backed wallet chips on `/wallet`.
+- Added add/remove wallet behavior.
+- Added invalid-wallet notices for mixed valid/invalid reads.
+- Preserved single-wallet read behavior.
+- Verified `npx tsc --noEmit` passes.
+- Confirmed JPG Match still loads.
+
