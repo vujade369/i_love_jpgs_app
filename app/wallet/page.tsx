@@ -517,9 +517,9 @@ export default function WalletReadPage() {
         {state === "idle" && (
           <Panel>
             <p style={eyebrowStyle}>Ready</p>
-            <h2 style={panelTitleStyle}>Start with a public wallet.</h2>
+            <h2 style={panelTitleStyle}>Start with a wallet.</h2>
             <p style={mutedTextStyle}>
-              The first read stays close to the raw collection data: counts, collection names, images, and simple category signals.
+              We’ll look for the visible signals hiding in plain sight: collections, counts, images, and simple taste patterns.
             </p>
           </Panel>
         )}
