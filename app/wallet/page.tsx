@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
+import { looksInstitutionalCollector } from "@/lib/jpgs/institutionalWallets";
 
 type TopCollection = {
   slug: string;
@@ -173,6 +174,7 @@ export default function WalletReadPage() {
   const [suggestState, setSuggestState] = useState<SuggestState>("idle");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [similarCollectors, setSimilarCollectors] = useState<SimilarCollector[]>([]);
+  const [hideInstitutional, setHideInstitutional] = useState(false);
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requestSeq = useRef(0);
   const didHydrateUrl = useRef(false);
@@ -419,6 +421,10 @@ export default function WalletReadPage() {
   const sourceNotices = sourceWallets.filter((source) => source.status !== "included");
   const atWalletLimit = walletSet.length >= MAX_WALLETS;
   const activeReadLabel = readLabelForView(walletSet, activeView);
+  const visibleSimilarCollectors = hideInstitutional
+    ? similarCollectors.filter((collector) => !looksInstitutionalCollector(collector))
+    : similarCollectors;
+  const hiddenInstitutionalCollectorCount = similarCollectors.length - visibleSimilarCollectors.length;
 
   return (
     <main className="min-h-screen" style={{ background: "var(--jpgs-bg)", color: "var(--jpgs-text)" }}>
@@ -767,8 +773,33 @@ export default function WalletReadPage() {
                     title="Collectors nearby"
                     detail="Wallets with visible overlap across this wallet’s strongest collection signals."
                   />
+                  <label
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                      marginBottom: 12,
+                      color: "var(--jpgs-muted)",
+                      fontSize: 12,
+                      cursor: "pointer",
+                      userSelect: "none",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={hideInstitutional}
+                      onChange={(event) => setHideInstitutional(event.target.checked)}
+                      style={{ accentColor: "var(--jpgs-accent)" }}
+                    />
+                    Hide institutional wallets
+                  </label>
+                  {hiddenInstitutionalCollectorCount > 0 && (
+                    <p style={{ ...mutedTextStyle, fontSize: 12, marginBottom: 14 }}>
+                      Hiding {hiddenInstitutionalCollectorCount} likely institutional wallets.
+                    </p>
+                  )}
                   <div style={similarCollectorGridStyle}>
-                    {similarCollectors.map((collector) => (
+                    {visibleSimilarCollectors.map((collector) => (
                       <SimilarCollectorCard key={collector.address} collector={collector} />
                     ))}
                   </div>

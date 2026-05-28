@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { looksInstitutionalCollector } from "@/lib/jpgs/institutionalWallets";
 
 type CollectionRef = {
   slug: string;
@@ -61,6 +62,7 @@ function ResultsInner() {
   const [partial, setPartial] = useState(false);
   const [noCollections, setNoCollections] = useState(false);
   const [visibleCount, setVisibleCount] = useState(20);
+  const [hideInstitutional, setHideInstitutional] = useState(false);
 
   useEffect(() => {
     async function run() {
@@ -105,6 +107,11 @@ function ResultsInner() {
     void run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const visibleWallets = hideInstitutional
+    ? wallets.filter((wallet) => !looksInstitutionalCollector(wallet))
+    : wallets;
+  const hiddenInstitutionalCount = wallets.length - visibleWallets.length;
 
   return (
     <>
@@ -224,17 +231,42 @@ function ResultsInner() {
 
         {!loading && !noCollections && !error && wallets.length > 0 && (
           <>
+            <label
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                marginBottom: 12,
+                color: "rgba(168,164,157,0.72)",
+                fontSize: 12,
+                cursor: "pointer",
+                userSelect: "none",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={hideInstitutional}
+                onChange={(event) => setHideInstitutional(event.target.checked)}
+                style={{ accentColor: "rgb(149,117,255)" }}
+              />
+              Hide institutional wallets
+            </label>
+            {hiddenInstitutionalCount > 0 && (
+              <p style={{ fontSize: 12, color: "rgba(168,164,157,0.5)", marginBottom: 16 }}>
+                Hiding {hiddenInstitutionalCount} likely institutional wallets.
+              </p>
+            )}
             {partial && (
               <p style={{ fontSize: 12, color: "rgba(168,164,157,0.5)", marginBottom: 16 }}>
                 Showing the strongest matches found so far.
               </p>
             )}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {wallets.slice(0, visibleCount).map((wallet) => (
+              {visibleWallets.slice(0, visibleCount).map((wallet) => (
                 <CollectorCard key={wallet.address} wallet={wallet} />
               ))}
             </div>
-            {wallets.length > visibleCount && (
+            {visibleWallets.length > visibleCount && (
               <button
                 onClick={() => setVisibleCount((c) => c + 20)}
                 style={{
