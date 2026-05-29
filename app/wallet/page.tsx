@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
+import { BrandLockup } from "@/components/BrandLockup";
 import { looksInstitutionalCollector } from "@/lib/jpgs/institutionalWallets";
 
 type TopCollection = {
@@ -447,9 +448,7 @@ export default function WalletReadPage() {
   return (
     <main className="min-h-screen" style={{ background: "var(--jpgs-bg)", color: "var(--jpgs-text)" }}>
       <section style={{ maxWidth: 920, margin: "0 auto", padding: "72px 24px 40px" }}>
-        <p style={{ fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--jpgs-accent)", marginBottom: 20 }}>
-          I Like JPGs
-        </p>
+        <BrandLockup />
         <h1 style={{ fontSize: 38, fontWeight: 300, lineHeight: 1.15, marginBottom: 14 }}>
           A wallet read for people who know the JPGs were never just JPGs.
         </h1>
