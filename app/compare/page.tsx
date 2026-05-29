@@ -570,7 +570,7 @@ function SharedCollectionCard({
   return (
     <article style={sharedCollectionCardStyle}>
       <div style={sharedCollectionSummaryStyle}>
-        <CollectionThumb collection={collection} size={76} />
+        <CollectionThumb collection={collection} size={82} />
         <div style={sharedCollectionBodyStyle}>
           <div style={sharedCardHeaderStyle}>
             <div style={{ minWidth: 0 }}>
@@ -657,12 +657,16 @@ function SharedNftColumn({
   nfts: CompareSharedCollectionNft[];
 }) {
   const moreHeldCount = Math.max(heldCount - nfts.length, 0);
+  const countContext =
+    moreHeldCount > 0
+      ? `${formatCount(nfts.length)} shown · ${formatCount(heldCount)} held`
+      : `${formatCount(heldCount)} held`;
 
   return (
     <div style={sharedNftColumnStyle}>
       <div style={sharedNftColumnHeaderStyle}>
         <h4 style={sharedNftColumnTitleStyle}>{walletName}</h4>
-        <span style={sharedNftColumnCountStyle}>{formatCount(heldCount)} held</span>
+        <span style={sharedNftColumnCountStyle}>{countContext}</span>
       </div>
 
       {nfts.length > 0 ? (
@@ -682,19 +686,17 @@ function SharedNftColumn({
 
 function SharedNftTile({ nft }: { nft: CompareSharedCollectionNft }) {
   const name = nft.name || "Visible piece";
-  const tile = (
-    <div style={sharedNftTileStyle}>
-      <NftThumb nft={nft} name={name} />
-      <span style={sharedNftNameStyle}>{name}</span>
-    </div>
-  );
-
-  if (!nft.openSeaUrl) return tile;
 
   return (
-    <a href={nft.openSeaUrl} target="_blank" rel="noreferrer" style={sharedNftLinkStyle}>
-      {tile}
-    </a>
+    <div style={sharedNftRowStyle}>
+      <NftThumb nft={nft} name={name} />
+      <span style={sharedNftNameStyle}>{name}</span>
+      {nft.openSeaUrl && (
+        <a href={nft.openSeaUrl} target="_blank" rel="noreferrer" style={sharedNftOpenSeaStyle}>
+          OpenSea
+        </a>
+      )}
+    </div>
   );
 }
 
@@ -1209,29 +1211,29 @@ const sectionDetailStyle: React.CSSProperties = {
 const sharedCollectionGridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "1fr",
-  gap: 12,
+  gap: 14,
 };
 
 const sharedCollectionCardStyle: React.CSSProperties = {
   border: "1px solid var(--jpgs-border)",
   borderRadius: 8,
-  padding: "clamp(14px, 3vw, 18px)",
+  padding: "clamp(16px, 3vw, 22px)",
   background: "rgba(255,255,255,0.022)",
   display: "grid",
-  gap: 16,
+  gap: 18,
 };
 
 const sharedCollectionSummaryStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "76px minmax(0, 1fr)",
-  gap: 16,
+  gridTemplateColumns: "82px minmax(0, 1fr)",
+  gap: 18,
   alignItems: "start",
 };
 
 const sharedCollectionBodyStyle: React.CSSProperties = {
   minWidth: 0,
   display: "grid",
-  gap: 12,
+  gap: 14,
 };
 
 const sharedCardHeaderStyle: React.CSSProperties = {
@@ -1254,7 +1256,7 @@ const sharedCollectionMetaStyle: React.CSSProperties = {
   color: "rgba(168,164,157,0.72)",
   fontSize: 12,
   lineHeight: 1.45,
-  marginTop: 5,
+  marginTop: 6,
 };
 
 const cardTitleStyle: React.CSSProperties = {
@@ -1269,7 +1271,7 @@ const openSeaLinkStyle: React.CSSProperties = {
   flex: "0 0 auto",
   border: "1px solid rgba(255,255,255,0.08)",
   borderRadius: 999,
-  padding: "5px 8px",
+  padding: "6px 9px",
   color: "var(--jpgs-muted)",
   textDecoration: "none",
   fontSize: 11,
@@ -1278,23 +1280,26 @@ const openSeaLinkStyle: React.CSSProperties = {
 
 const sharedDepthGridStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 190px), 1fr))",
-  gap: 8,
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))",
+  gap: 10,
 };
 
 const sharedWalletDepthStyle: React.CSSProperties = {
   minWidth: 0,
-  border: "1px solid rgba(255,255,255,0.055)",
+  minHeight: 86,
+  border: "1px solid rgba(255,255,255,0.07)",
   borderRadius: 8,
-  padding: "10px 11px",
-  background: "rgba(255,255,255,0.014)",
+  padding: "12px 13px",
+  background: "rgba(255,255,255,0.018)",
+  display: "grid",
+  alignContent: "center",
 };
 
 const sharedWalletNameStyle: React.CSSProperties = {
   display: "block",
   color: "var(--jpgs-muted)",
-  fontSize: 11,
-  lineHeight: 1.25,
+  fontSize: 12,
+  lineHeight: 1.3,
   overflow: "hidden",
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
@@ -1304,17 +1309,17 @@ const sharedHeldCountStyle: React.CSSProperties = {
   display: "block",
   color: "var(--jpgs-text)",
   fontFamily: "var(--font-geist-mono)",
-  fontSize: 14,
+  fontSize: 18,
   lineHeight: 1.25,
-  marginTop: 5,
+  marginTop: 6,
 };
 
 const sharedSinceStyle: React.CSSProperties = {
   display: "block",
-  color: "rgba(168,164,157,0.72)",
-  fontSize: 11,
+  color: "rgba(238,235,229,0.72)",
+  fontSize: 13,
   lineHeight: 1.35,
-  marginTop: 4,
+  marginTop: 6,
 };
 
 const revealButtonStyle: React.CSSProperties = {
@@ -1332,14 +1337,18 @@ const revealButtonStyle: React.CSSProperties = {
 
 const sharedRevealStyle: React.CSSProperties = {
   borderTop: "1px solid rgba(255,255,255,0.06)",
-  paddingTop: 16,
+  paddingTop: 18,
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 320px), 1fr))",
-  gap: 14,
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))",
+  gap: 16,
 };
 
 const sharedNftColumnStyle: React.CSSProperties = {
   minWidth: 0,
+  border: "1px solid rgba(255,255,255,0.055)",
+  borderRadius: 8,
+  padding: 12,
+  background: "rgba(255,255,255,0.01)",
   display: "grid",
   alignContent: "start",
   gap: 10,
@@ -1350,12 +1359,13 @@ const sharedNftColumnHeaderStyle: React.CSSProperties = {
   justifyContent: "space-between",
   alignItems: "baseline",
   gap: 10,
+  paddingBottom: 2,
 };
 
 const sharedNftColumnTitleStyle: React.CSSProperties = {
   minWidth: 0,
   color: "var(--jpgs-text)",
-  fontSize: 13,
+  fontSize: 15,
   fontWeight: 400,
   lineHeight: 1.35,
   overflow: "hidden",
@@ -1372,25 +1382,20 @@ const sharedNftColumnCountStyle: React.CSSProperties = {
 
 const sharedNftGridStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fill, minmax(112px, 1fr))",
+  gridTemplateColumns: "1fr",
   gap: 8,
 };
 
-const sharedNftTileStyle: React.CSSProperties = {
+const sharedNftRowStyle: React.CSSProperties = {
   minWidth: 0,
   border: "1px solid rgba(255,255,255,0.055)",
   borderRadius: 8,
-  padding: 8,
+  padding: "8px 9px",
   background: "rgba(255,255,255,0.014)",
   display: "grid",
-  gridTemplateColumns: "54px minmax(0, 1fr)",
-  gap: 8,
+  gridTemplateColumns: "54px minmax(0, 1fr) auto",
+  gap: 10,
   alignItems: "center",
-};
-
-const sharedNftLinkStyle: React.CSSProperties = {
-  color: "inherit",
-  textDecoration: "none",
 };
 
 const sharedNftImageStyle: React.CSSProperties = {
@@ -1414,9 +1419,23 @@ const sharedNftFallbackStyle: React.CSSProperties = {
 const sharedNftNameStyle: React.CSSProperties = {
   minWidth: 0,
   color: "rgba(238,235,229,0.88)",
-  fontSize: 12,
+  fontSize: 13,
   lineHeight: 1.35,
-  overflowWrap: "anywhere",
+  overflow: "hidden",
+  display: "-webkit-box",
+  WebkitBoxOrient: "vertical",
+  WebkitLineClamp: 2,
+};
+
+const sharedNftOpenSeaStyle: React.CSSProperties = {
+  flex: "0 0 auto",
+  border: "1px solid rgba(255,255,255,0.07)",
+  borderRadius: 999,
+  padding: "5px 7px",
+  color: "var(--jpgs-muted)",
+  textDecoration: "none",
+  fontSize: 10,
+  lineHeight: 1.2,
 };
 
 const sharedNftEmptyStyle: React.CSSProperties = {
