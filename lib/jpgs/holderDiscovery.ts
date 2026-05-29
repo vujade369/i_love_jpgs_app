@@ -1,8 +1,10 @@
 import {
-  fetchAccount,
-  fetchResolvedAccount,
+  fetchAccountWithDiagnostic,
+  fetchResolvedAccountWithDiagnostic,
   normalizeOpenSeaAccountIdentity,
   type OpenSeaAccountIdentity,
+  type OpenSeaAccountFetchDiagnostic,
+  type OpenSeaIdentityFetchStatus,
   type OsAccount,
 } from "./opensea";
 
@@ -122,6 +124,19 @@ export type AccountHydrationSummary = {
 
 export type AccountIdentityDebug = {
   address: string;
+  cacheHit: boolean;
+  cachedIdentitySource?: OpenSeaAccountIdentity["identitySource"];
+  cachedHadAvatar: boolean;
+  accountFetchAttempted: boolean;
+  accountFetchStatus: OpenSeaIdentityFetchStatus;
+  accountFetchError?: string;
+  accountFetchHadBody: boolean;
+  accountFetchUsername?: string;
+  accountFetchProfileImageUrl?: string;
+  resolveFetchAttempted: boolean;
+  resolveFetchStatus: OpenSeaIdentityFetchStatus;
+  resolveFetchError?: string;
+  resolveFetchEns?: string;
   rawAccount: {
     username?: string;
     display_name?: string;
@@ -193,6 +208,77 @@ async function runConcurrently<T>(
   return results;
 }
 
+function firstText(...values: Array<string | null | undefined>): string | undefined {
+  for (const value of values) {
+    const trimmed = value?.trim();
+    if (trimmed) return trimmed;
+  }
+  return undefined;
+}
+
+function usernameForDebug(account?: OsAccount | null): string | undefined {
+  return firstText(account?.username, account?.account?.username, account?.user?.username);
+}
+
+function profileImageForDebug(account?: OsAccount | null): string | undefined {
+  return firstText(
+    account?.profile_image_url,
+    account?.profileImageUrl,
+    account?.account?.profile_image_url,
+    account?.account?.profileImageUrl,
+    account?.user?.profile_image_url,
+    account?.user?.profileImageUrl,
+  );
+}
+
+function ensForDebug(account?: OsAccount | null): string | undefined {
+  return firstText(
+    account?.ens,
+    account?.ens_name,
+    account?.ensName,
+    account?.account?.ens,
+    account?.account?.ens_name,
+    account?.account?.ensName,
+    account?.user?.ens,
+    account?.user?.ens_name,
+    account?.user?.ensName,
+  );
+}
+
+function notAttemptedDiagnostic(): OpenSeaAccountFetchDiagnostic {
+  return {
+    attempted: false,
+    status: "not_attempted",
+    hadBody: false,
+    account: null,
+  };
+}
+
+function identityHasAvatar(identity: OpenSeaAccountIdentity): boolean {
+  return Boolean(identity.avatarUrl || identity.profileImageUrl || identity.imageUrl);
+}
+
+function cacheHitDebug(
+  cached: AccountIdentityCacheEntry,
+): AccountIdentityDebug {
+  return {
+    ...cached.debug,
+    cacheHit: true,
+    cachedIdentitySource: cached.identity.identitySource,
+    cachedHadAvatar: identityHasAvatar(cached.identity),
+    accountFetchAttempted: false,
+    accountFetchStatus: "not_attempted",
+    accountFetchError: undefined,
+    accountFetchHadBody: false,
+    accountFetchUsername: undefined,
+    accountFetchProfileImageUrl: undefined,
+    resolveFetchAttempted: false,
+    resolveFetchStatus: "not_attempted",
+    resolveFetchError: undefined,
+    resolveFetchEns: undefined,
+  };
+}
+
 async function getAccountIdentity(
   address: string,
 ): Promise<{
@@ -205,18 +291,20 @@ async function getAccountIdentity(
 
   if (cached) {
     if (Date.now() - cached.fetchedAt <= ACCOUNT_PROFILE_CACHE_TTL_MS) {
-      return { identity: cached.identity, debug: cached.debug, outcome: "cached" };
+      return { identity: cached.identity, debug: cacheHitDebug(cached), outcome: "cached" };
     }
     accountIdentityCache.delete(cacheKey);
   }
 
-  const account = await fetchAccount(address);
-  const resolvedAccount = hasReadableAccountName(account) && hasAccountEns(account)
-    ? null
-    : await fetchResolvedAccount(address);
+  const accountFetch = await fetchAccountWithDiagnostic(address);
+  const account = accountFetch.account;
+  const resolveFetch = hasReadableAccountName(account) && hasAccountEns(account)
+    ? notAttemptedDiagnostic()
+    : await fetchResolvedAccountWithDiagnostic(address);
+  const resolvedAccount = resolveFetch.account;
   const identity = normalizeOpenSeaAccountIdentity(address, account, resolvedAccount);
-  const debug = accountIdentityDebug(address, account, resolvedAccount, identity);
-  const shouldCache = hasSuccessfulIdentity(identity, account, resolvedAccount);
+  const debug = accountIdentityDebug(address, accountFetch, resolveFetch, identity);
+  const shouldCache = hasCompleteIdentityForCache(identity, account);
 
   if (shouldCache) {
     accountIdentityCache.set(cacheKey, {
@@ -231,12 +319,27 @@ async function getAccountIdentity(
 
 function accountIdentityDebug(
   address: string,
-  account: OsAccount | null,
-  resolvedAccount: OsAccount | null,
+  accountFetch: OpenSeaAccountFetchDiagnostic,
+  resolveFetch: OpenSeaAccountFetchDiagnostic,
   identity: OpenSeaAccountIdentity,
 ): AccountIdentityDebug {
+  const account = accountFetch.account;
+  const resolvedAccount = resolveFetch.account;
+
   return {
     address,
+    cacheHit: false,
+    cachedHadAvatar: false,
+    accountFetchAttempted: accountFetch.attempted,
+    accountFetchStatus: accountFetch.status,
+    accountFetchError: accountFetch.error,
+    accountFetchHadBody: accountFetch.hadBody,
+    accountFetchUsername: usernameForDebug(account),
+    accountFetchProfileImageUrl: profileImageForDebug(account),
+    resolveFetchAttempted: resolveFetch.attempted,
+    resolveFetchStatus: resolveFetch.status,
+    resolveFetchError: resolveFetch.error,
+    resolveFetchEns: ensForDebug(resolvedAccount),
     rawAccount: account
       ? {
           username: account.username,
@@ -350,6 +453,13 @@ function hasSuccessfulIdentity(
       hasAccountAvatar(account) ||
       hasAccountAvatar(resolvedAccount),
   );
+}
+
+function hasCompleteIdentityForCache(
+  identity: OpenSeaAccountIdentity,
+  account?: OsAccount | null,
+): boolean {
+  return Boolean(account && hasSuccessfulIdentity(identity, account, null));
 }
 
 function hydrationSummary(

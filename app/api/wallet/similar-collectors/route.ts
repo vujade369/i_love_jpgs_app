@@ -151,16 +151,30 @@ export async function POST(req: NextRequest) {
               ? {
                   identity: collectors.map((collector) => {
                     const identity = hydration.identities.get(collector.address.toLowerCase());
+                    const debugIdentity = identity?.debug;
                     return {
                       address: collector.address,
-                      rawAccount: identity?.debug?.rawAccount ?? null,
-                      rawResolve: identity?.debug?.rawResolve ?? null,
+                      cacheHit: debugIdentity?.cacheHit ?? false,
+                      cachedIdentitySource: debugIdentity?.cachedIdentitySource ?? null,
+                      cachedHadAvatar: debugIdentity?.cachedHadAvatar ?? false,
+                      accountFetchAttempted: debugIdentity?.accountFetchAttempted ?? false,
+                      accountFetchStatus: debugIdentity?.accountFetchStatus ?? "not_attempted",
+                      accountFetchError: debugIdentity?.accountFetchError ?? null,
+                      accountFetchHadBody: debugIdentity?.accountFetchHadBody ?? false,
+                      accountFetchUsername: debugIdentity?.accountFetchUsername ?? null,
+                      accountFetchProfileImageUrl: debugIdentity?.accountFetchProfileImageUrl ?? null,
+                      resolveFetchAttempted: debugIdentity?.resolveFetchAttempted ?? false,
+                      resolveFetchStatus: debugIdentity?.resolveFetchStatus ?? "not_attempted",
+                      resolveFetchError: debugIdentity?.resolveFetchError ?? null,
+                      resolveFetchEns: debugIdentity?.resolveFetchEns ?? null,
+                      rawAccount: debugIdentity?.rawAccount ?? null,
+                      rawResolve: debugIdentity?.rawResolve ?? null,
                       finalUsername: collector.username,
                       finalDisplayName: collector.displayName,
                       finalEns: collector.ens,
                       finalAvatarUrl: collector.avatarUrl,
                       identitySource: collector.identitySource,
-                      avatarBeforeMapping: identity?.debug?.avatarBeforeMapping ?? false,
+                      avatarBeforeMapping: debugIdentity?.avatarBeforeMapping ?? false,
                       avatarAfterMapping: Boolean(
                         collector.avatarUrl || collector.profileImageUrl || collector.imageUrl,
                       ),

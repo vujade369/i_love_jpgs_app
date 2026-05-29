@@ -623,6 +623,101 @@ export async function fetchResolvedAccount(
   }
 }
 
+export type OpenSeaIdentityFetchStatus = number | "not_attempted" | "timeout" | "error";
+
+export type OpenSeaAccountFetchDiagnostic = {
+  attempted: boolean;
+  status: OpenSeaIdentityFetchStatus;
+  error?: string;
+  hadBody: boolean;
+  account: OsAccount | null;
+};
+
+function safeOpenSeaError(error: unknown): string {
+  if (error instanceof Error) {
+    if (error.name === "AbortError") return "timeout";
+    return error.message.slice(0, 160);
+  }
+  return String(error).slice(0, 160);
+}
+
+async function fetchAccountDiagnostic(
+  path: string,
+  timeoutMs: number,
+): Promise<OpenSeaAccountFetchDiagnostic> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(
+      `${OPENSEA_BASE}${path}`,
+      {
+        signal: controller.signal,
+        headers: { "X-API-KEY": apiKey(), Accept: "application/json" },
+        cache: "no-store",
+      },
+    );
+    const text = await res.text();
+    const hadBody = text.trim().length > 0;
+
+    if (!res.ok) {
+      return {
+        attempted: true,
+        status: res.status,
+        error: `OpenSea ${res.status}`,
+        hadBody,
+        account: null,
+      };
+    }
+
+    return {
+      attempted: true,
+      status: res.status,
+      hadBody,
+      account: hadBody ? JSON.parse(text) as OsAccount : null,
+    };
+  } catch (error: unknown) {
+    const isTimeout = error instanceof Error && error.name === "AbortError";
+    return {
+      attempted: true,
+      status: isTimeout ? "timeout" : "error",
+      error: safeOpenSeaError(error),
+      hadBody: false,
+      account: null,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function shouldRetryAccountDiagnostic(result: OpenSeaAccountFetchDiagnostic): boolean {
+  return result.status === "timeout" || (typeof result.status === "number" && result.status >= 500);
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function fetchAccountWithDiagnostic(
+  address: string,
+  timeoutMs = 5_000,
+): Promise<OpenSeaAccountFetchDiagnostic> {
+  const path = `/accounts/${encodeURIComponent(address)}`;
+  const firstAttempt = await fetchAccountDiagnostic(path, timeoutMs);
+
+  if (!shouldRetryAccountDiagnostic(firstAttempt)) return firstAttempt;
+
+  await delay(500);
+  return fetchAccountDiagnostic(path, timeoutMs);
+}
+
+export async function fetchResolvedAccountWithDiagnostic(
+  address: string,
+  timeoutMs = 2_000,
+): Promise<OpenSeaAccountFetchDiagnostic> {
+  return fetchAccountDiagnostic(`/accounts/resolve/${encodeURIComponent(address)}`, timeoutMs);
+}
+
 export type WalletIdentitySuggestion = {
   label: string;
   displayName?: string;
