@@ -3,9 +3,10 @@ import {
   discoverWalletsForCollections,
   hydrateAccountIdentities,
   type CollectionRef,
-  ACCOUNT_HYDRATION_LIMIT,
   ACCOUNT_HYDRATION_CONCURRENCY,
 } from "@/lib/jpgs/holderDiscovery";
+
+const DISCOVER_COLLECTOR_RESULT_LIMIT = 20;
 
 type DiscoverBody = { collections: CollectionRef[] };
 
@@ -26,17 +27,17 @@ export async function POST(req: NextRequest) {
   }
 
   const discovery = await discoverWalletsForCollections(collections);
-  const top50 = discovery.wallets.slice(0, 50);
+  const returnedWallets = discovery.wallets.slice(0, DISCOVER_COLLECTOR_RESULT_LIMIT);
   const n = Math.max(collections.length, 1);
   const hydration = await hydrateAccountIdentities(
-    top50.map((wallet) => wallet.address),
+    returnedWallets.map((wallet) => wallet.address),
     {
-      limit: ACCOUNT_HYDRATION_LIMIT,
+      limit: returnedWallets.length,
       concurrency: ACCOUNT_HYDRATION_CONCURRENCY,
     },
   );
 
-  const wallets = top50.map((wallet) => {
+  const wallets = returnedWallets.map((wallet) => {
     const identity = hydration.identities.get(wallet.address.toLowerCase());
     const profileUrl = identity?.openSeaUrl ?? identity?.openseaProfileUrl ?? `https://opensea.io/${wallet.address}`;
     const score = Math.round(
@@ -89,16 +90,30 @@ export async function POST(req: NextRequest) {
               ? {
                   identity: wallets.map((wallet) => {
                     const identity = hydration.identities.get(wallet.address.toLowerCase());
+                    const debugIdentity = identity?.debug;
                     return {
                       address: wallet.address,
-                      rawAccount: identity?.debug?.rawAccount ?? null,
-                      rawResolve: identity?.debug?.rawResolve ?? null,
+                      cacheHit: debugIdentity?.cacheHit ?? false,
+                      cachedIdentitySource: debugIdentity?.cachedIdentitySource ?? null,
+                      cachedHadAvatar: debugIdentity?.cachedHadAvatar ?? false,
+                      accountFetchAttempted: debugIdentity?.accountFetchAttempted ?? false,
+                      accountFetchStatus: debugIdentity?.accountFetchStatus ?? "not_attempted",
+                      accountFetchError: debugIdentity?.accountFetchError ?? null,
+                      accountFetchHadBody: debugIdentity?.accountFetchHadBody ?? false,
+                      accountFetchUsername: debugIdentity?.accountFetchUsername ?? null,
+                      accountFetchProfileImageUrl: debugIdentity?.accountFetchProfileImageUrl ?? null,
+                      resolveFetchAttempted: debugIdentity?.resolveFetchAttempted ?? false,
+                      resolveFetchStatus: debugIdentity?.resolveFetchStatus ?? "not_attempted",
+                      resolveFetchError: debugIdentity?.resolveFetchError ?? null,
+                      resolveFetchEns: debugIdentity?.resolveFetchEns ?? null,
+                      rawAccount: debugIdentity?.rawAccount ?? null,
+                      rawResolve: debugIdentity?.rawResolve ?? null,
                       finalUsername: wallet.username,
                       finalDisplayName: wallet.displayName,
                       finalEns: wallet.ens,
                       finalAvatarUrl: wallet.avatarUrl,
                       identitySource: wallet.identitySource,
-                      avatarBeforeMapping: identity?.debug?.avatarBeforeMapping ?? false,
+                      avatarBeforeMapping: debugIdentity?.avatarBeforeMapping ?? false,
                       avatarAfterMapping: Boolean(
                         wallet.avatarUrl || wallet.profileImageUrl || wallet.imageUrl,
                       ),
