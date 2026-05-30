@@ -229,9 +229,9 @@ export default function ComparePage() {
         <div style={heroGridStyle}>
           <div>
             <p style={eyebrowStyle}>Compare</p>
-            <h1 style={heroTitleStyle}>Where two wallets visibly rhyme.</h1>
+            <h1 style={heroTitleStyle}>What do two collectors have in common?</h1>
             <p style={heroCopyStyle}>
-              Enter two public wallets, ENS names, or OpenSea profiles to read where visible NFT collection signals overlap.
+              Enter two wallets, ENS names, or OpenSea profiles to see where their collections overlap.
             </p>
           </div>
 
@@ -263,7 +263,7 @@ export default function ComparePage() {
               />
             </div>
             <button type="submit" disabled={isLoading} style={primaryButtonStyle(isLoading)}>
-              {isLoading ? "Reading wallets" : "Compare visible overlap"}
+              {isLoading ? "Reading wallets" : "Compare wallets"}
             </button>
           </form>
         </div>
@@ -273,8 +273,8 @@ export default function ComparePage() {
         {state === "idle" && (
           <StatePanel
             label="Ready"
-            title="Start with two visible collection sets."
-            body="The read looks for shared worlds, category overlap, and what each wallet brings into view from public NFT holdings."
+            title="Start with two wallets."
+            body="Paste any ENS, address, or OpenSea profile to get started."
           />
         )}
 
