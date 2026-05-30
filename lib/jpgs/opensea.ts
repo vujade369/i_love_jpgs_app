@@ -691,7 +691,11 @@ async function fetchAccountDiagnostic(
 }
 
 function shouldRetryAccountDiagnostic(result: OpenSeaAccountFetchDiagnostic): boolean {
-  return result.status === "timeout" || (typeof result.status === "number" && result.status >= 500);
+  return (
+    result.status === "timeout" ||
+    result.status === 429 ||
+    (typeof result.status === "number" && result.status >= 500)
+  );
 }
 
 function delay(ms: number): Promise<void> {
@@ -707,13 +711,14 @@ export async function fetchAccountWithDiagnostic(
 
   if (!shouldRetryAccountDiagnostic(firstAttempt)) return firstAttempt;
 
-  await delay(500);
+  // 429 needs a longer backoff to clear OpenSea's rate-limit window
+  await delay(firstAttempt.status === 429 ? 1_500 : 500);
   return fetchAccountDiagnostic(path, timeoutMs);
 }
 
 export async function fetchResolvedAccountWithDiagnostic(
   address: string,
-  timeoutMs = 2_000,
+  timeoutMs = 4_000,
 ): Promise<OpenSeaAccountFetchDiagnostic> {
   return fetchAccountDiagnostic(`/accounts/resolve/${encodeURIComponent(address)}`, timeoutMs);
 }

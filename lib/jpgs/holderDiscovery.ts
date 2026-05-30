@@ -15,6 +15,9 @@ const MAX_COLLECTIONS_PER_DISCOVERY = 5;
 const HOLDER_FETCH_TIMEOUT_MS = 25_000;
 const CACHE_TTL_MS = 20 * 60 * 1000;
 const ACCOUNT_PROFILE_CACHE_TTL_MS = 15 * 60 * 1000;
+// Shorter TTL for addresses where OpenSea returned a definitive 404 (no account exists).
+// Prevents re-fetching known-empty addresses on every load while still expiring quickly.
+const ACCOUNT_NO_PROFILE_CACHE_TTL_MS = 5 * 60 * 1000;
 
 export const ACCOUNT_HYDRATION_LIMIT = 10;
 export const ACCOUNT_HYDRATION_CONCURRENCY = 2;
@@ -179,6 +182,9 @@ export type AccountHydrationResult = {
 
 const holderCache = new Map<string, HolderCacheEntry>();
 const accountIdentityCache = new Map<string, AccountIdentityCacheEntry>();
+// Hard-negative cache: addresses OpenSea confirmed have no account (clean 404 + no resolve data).
+// Soft failures (timeout, 429, 5xx, network error) are intentionally excluded so refresh can recover.
+const accountNoProfileCache = new Map<string, { fetchedAt: number }>();
 
 function getCached(slug: string): HolderCacheEntry | null {
   const entry = holderCache.get(slug);
@@ -279,6 +285,24 @@ function cacheHitDebug(
   };
 }
 
+function negativeHitDebug(address: string): AccountIdentityDebug {
+  return {
+    address,
+    cacheHit: true,
+    cachedIdentitySource: "fallback",
+    cachedHadAvatar: false,
+    accountFetchAttempted: false,
+    accountFetchStatus: "not_attempted",
+    accountFetchHadBody: false,
+    resolveFetchAttempted: false,
+    resolveFetchStatus: "not_attempted",
+    rawAccount: null,
+    rawResolve: null,
+    identitySource: "fallback",
+    avatarBeforeMapping: false,
+  };
+}
+
 async function getAccountIdentity(
   address: string,
 ): Promise<{
@@ -287,6 +311,18 @@ async function getAccountIdentity(
   outcome: "ok" | "fail" | "cached";
 }> {
   const cacheKey = address.toLowerCase();
+
+  // Hard-negative cache: skip addresses where OpenSea gave a definitive "no identity" response
+  // (404, or 200/4xx with empty profile). Soft failures are excluded so refresh can recover.
+  const negative = accountNoProfileCache.get(cacheKey);
+  if (negative) {
+    if (Date.now() - negative.fetchedAt <= ACCOUNT_NO_PROFILE_CACHE_TTL_MS) {
+      const identity = normalizeOpenSeaAccountIdentity(address, null, null);
+      return { identity, debug: negativeHitDebug(address), outcome: "fail" };
+    }
+    accountNoProfileCache.delete(cacheKey);
+  }
+
   const cached = accountIdentityCache.get(cacheKey);
 
   if (cached) {
@@ -312,6 +348,18 @@ async function getAccountIdentity(
       identity,
       debug,
     });
+  } else if (!hasSuccessfulIdentity(identity, account, resolvedAccount)) {
+    // Hard negative: OpenSea responded (not a transient failure) but returned no usable identity.
+    // Covers clean 404s and 200s with empty profiles. Soft failures (timeout, 429, 5xx, network
+    // error) are excluded so refresh can still recover from transient conditions.
+    const isSoftFailure =
+      accountFetch.status === "timeout" ||
+      accountFetch.status === "error" ||
+      accountFetch.status === 429 ||
+      (typeof accountFetch.status === "number" && accountFetch.status >= 500);
+    if (!isSoftFailure) {
+      accountNoProfileCache.set(cacheKey, { fetchedAt: Date.now() });
+    }
   }
 
   return { identity, debug, outcome: shouldCache ? "ok" : "fail" };
