@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { BrandLockup } from "@/components/BrandLockup";
 import { WalletSearchInput, walletSuggestionValue, type WalletSuggestion } from "@/components/WalletSearchInput";
 
 type CompareRelationshipLabel =
@@ -156,7 +155,7 @@ export default function ComparePage() {
       if (!response.ok || !isCompareResponse(data)) {
         setState("error");
         setResult(null);
-        setError(errorMessageForStatus(response.status, data));
+        setError(errorMessageForStatus(response.status));
         return;
       }
 
@@ -216,6 +215,7 @@ export default function ComparePage() {
     setWalletBResolved("");
 
     if (walletA && walletB) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       void compareWallets(walletA, walletB, { syncUrl: false });
     }
   }, []);
@@ -225,7 +225,6 @@ export default function ComparePage() {
   return (
     <main style={pageStyle}>
       <section style={heroStyle}>
-        <BrandLockup />
         <div style={heroGridStyle}>
           <div>
             <p style={eyebrowStyle}>Compare</p>
@@ -280,9 +279,9 @@ export default function ComparePage() {
 
         {state === "loading" && (
           <StatePanel
-            label="Reading"
-            title="Gathering visible holdings for both wallets."
-            body="Collection metadata and taste signals are being assembled from the current public source."
+            label="READING"
+            title="Looking for shared collections."
+            body="Checking both wallets for public NFTs, collection overlap, and a few taste patterns."
           />
         )}
 
@@ -302,22 +301,13 @@ export default function ComparePage() {
               <WalletSummaryCard label="Wallet B" wallet={result.walletB} />
             </section>
 
-            <RelationshipRead result={result} />
-
             <SharedCollectionsSection
               collections={result.sharedCollections}
               walletA={result.walletA}
               walletB={result.walletB}
             />
 
-            <TasteOverlapSection overlap={result.tasteOverlap} />
-
-            <DifferencesSection
-              walletA={result.walletA}
-              walletB={result.walletB}
-              walletAOnly={result.differences.walletAOnly}
-              walletBOnly={result.differences.walletBOnly}
-            />
+            <TasteOverlapSection overlap={result.tasteOverlap} walletA={result.walletA} walletB={result.walletB} />
           </div>
         )}
       </section>
@@ -338,7 +328,7 @@ function isCompareResponse(data: CompareResponse | CompareErrorResponse): data i
   );
 }
 
-function errorMessageForStatus(status: number, data: CompareResponse | CompareErrorResponse): string {
+function errorMessageForStatus(status: number): string {
   if (status === 400) return "Enter both wallet inputs before starting the compare read.";
   if (status === 422) return "One of those wallet inputs could not be resolved as a supported public wallet.";
   if (status === 502) return "Visible NFT holdings could not be fetched right now.";
@@ -515,12 +505,13 @@ function SharedCollectionsSection({
   walletB: CompareWalletSummary;
 }) {
   const [expandedCollectionKey, setExpandedCollectionKey] = useState<string | null>(null);
+  const [prevCollections, setPrevCollections] = useState(collections);
+  if (prevCollections !== collections) {
+    setPrevCollections(collections);
+    setExpandedCollectionKey(null);
+  }
   const walletAName = walletTitle(walletA);
   const walletBName = walletTitle(walletB);
-
-  useEffect(() => {
-    setExpandedCollectionKey(null);
-  }, [collections]);
 
   return (
     <section style={sectionStyle}>
@@ -721,7 +712,17 @@ function NftThumb({ nft, name }: { nft: CompareSharedCollectionNft; name: string
   );
 }
 
-function TasteOverlapSection({ overlap }: { overlap: CompareTasteOverlap[] }) {
+function TasteOverlapSection({
+  overlap,
+  walletA,
+  walletB,
+}: {
+  overlap: CompareTasteOverlap[];
+  walletA: CompareWalletSummary;
+  walletB: CompareWalletSummary;
+}) {
+  const nameA = walletTitle(walletA);
+  const nameB = walletTitle(walletB);
   return (
     <section style={sectionStyle}>
       <SectionHeading
@@ -735,7 +736,14 @@ function TasteOverlapSection({ overlap }: { overlap: CompareTasteOverlap[] }) {
       ) : (
         <div style={signalGridStyle}>
           {overlap.map((signal) => (
-            <SignalRow key={signal.label} signal={signal} />
+            <SignalRow
+              key={signal.label}
+              signal={signal}
+              nameA={nameA}
+              nameB={nameB}
+              totalA={walletA.visibleNftCount}
+              totalB={walletB.visibleNftCount}
+            />
           ))}
         </div>
       )}
@@ -743,30 +751,87 @@ function TasteOverlapSection({ overlap }: { overlap: CompareTasteOverlap[] }) {
   );
 }
 
-function SignalRow({ signal }: { signal: CompareTasteOverlap }) {
+function signalLeanTag(nameA: string, nameB: string, pctA: number, pctB: number): string {
+  const diff = Math.abs(pctA - pctB);
+  if (diff < 4) return "Shared lean";
+  if (pctA > 10 && pctB > 10) return "Strong overlap";
+  return `${pctA > pctB ? nameA : nameB} leans heavier`;
+}
+
+function SignalRow({
+  signal,
+  nameA,
+  nameB,
+  totalA,
+  totalB,
+}: {
+  signal: CompareTasteOverlap;
+  nameA: string;
+  nameB: string;
+  totalA: number;
+  totalB: number;
+}) {
+  const pctA = totalA > 0 ? (signal.walletACount / totalA) * 100 : 0;
+  const pctB = totalB > 0 ? (signal.walletBCount / totalB) * 100 : 0;
+  const tag = signalLeanTag(nameA, nameB, pctA, pctB);
+
   return (
     <article style={signalRowStyle}>
-      <div>
+      <div style={signalCardHeaderStyle}>
         <h3 style={cardTitleStyle}>{signal.label}</h3>
-        {signal.exampleCollections.length > 0 && (
-          <p style={exampleLineStyle}>Seen around {signal.exampleCollections.join(", ")}</p>
-        )}
+        <span style={signalLeanTagStyle}>{tag}</span>
       </div>
-      <div style={signalMetricRowStyle}>
-        <SignalMetric label="A" value={signal.walletACount} />
-        <SignalMetric label="B" value={signal.walletBCount} />
-        <SignalMetric label="Together" value={signal.combinedCount} quiet />
+      {signal.exampleCollections.length > 0 && (
+        <p style={exampleLineStyle}>Seen around {signal.exampleCollections.join(", ")}</p>
+      )}
+      <div style={signalBarGridStyle}>
+        <SignalBarRow
+          name={nameA}
+          count={signal.walletACount}
+          pct={pctA}
+          total={totalA}
+          barColor="rgba(149,117,255,0.75)"
+        />
+        <SignalBarRow
+          name={nameB}
+          count={signal.walletBCount}
+          pct={pctB}
+          total={totalB}
+          barColor="rgba(116,190,166,0.75)"
+        />
       </div>
     </article>
   );
 }
 
-function SignalMetric({ label, value, quiet = false }: { label: string; value: number; quiet?: boolean }) {
+const BAR_SCALE_MAX = 30;
+
+function SignalBarRow({
+  name,
+  count,
+  pct,
+  total,
+  barColor,
+}: {
+  name: string;
+  count: number;
+  pct: number;
+  total: number;
+  barColor: string;
+}) {
+  const barWidth = Math.min((pct / BAR_SCALE_MAX) * 100, 100);
   return (
-    <span style={signalMetricStyle(quiet)}>
-      <span style={signalMetricLabelStyle(quiet)}>{label}</span>
-      {formatCount(value)}
-    </span>
+    <div style={signalBarRowStyle}>
+      <div style={signalBarHeaderStyle}>
+        <span style={signalBarNameStyle}>{name}</span>
+        <span style={signalBarStatStyle}>
+          {Math.round(pct)}% of wallet · {formatCount(count)} / {formatCount(total)} JPGs
+        </span>
+      </div>
+      <div style={signalBarTrackStyle}>
+        <div style={{ ...signalBarFillStyle, width: `${barWidth}%`, background: barColor }} />
+      </div>
+    </div>
   );
 }
 
@@ -814,7 +879,7 @@ function DifferenceColumn({
       <h3 style={differenceColumnTitleStyle}>{title}</h3>
       {signals.length === 0 ? (
         <div style={differenceEmptyStyle}>
-          <p style={mutedTextStyle}>{walletName}'s visible signal is mostly shared territory in this read.</p>
+          <p style={mutedTextStyle}>{`${walletName}'s visible signal is mostly shared territory in this read.`}</p>
         </div>
       ) : (
         <div style={differenceListStyle}>
@@ -1315,11 +1380,16 @@ const sharedHeldCountStyle: React.CSSProperties = {
 };
 
 const sharedSinceStyle: React.CSSProperties = {
-  display: "block",
-  color: "rgba(238,235,229,0.72)",
-  fontSize: 13,
+  display: "inline-flex",
+  justifySelf: "start",
+  color: "rgba(149,117,255,0.9)",
+  fontSize: 11,
   lineHeight: 1.35,
-  marginTop: 6,
+  marginTop: 7,
+  background: "rgba(149,117,255,0.1)",
+  border: "1px solid rgba(149,117,255,0.2)",
+  borderRadius: 999,
+  padding: "2px 7px",
 };
 
 const revealButtonStyle: React.CSSProperties = {
@@ -1461,45 +1531,75 @@ const signalGridStyle: React.CSSProperties = {
 
 const signalRowStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))",
-  gap: 16,
-  alignItems: "center",
+  gap: 12,
   border: "1px solid var(--jpgs-border)",
   borderRadius: 8,
-  padding: "15px 16px",
+  padding: "16px 18px",
   background: "rgba(255,255,255,0.018)",
 };
 
-const signalMetricRowStyle: React.CSSProperties = {
+const signalCardHeaderStyle: React.CSSProperties = {
   display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
   flexWrap: "wrap",
-  gap: 6,
-  justifyContent: "flex-end",
 };
 
-function signalMetricStyle(quiet: boolean): React.CSSProperties {
-  return {
-    minWidth: quiet ? 82 : 58,
-    border: quiet ? "1px solid rgba(255,255,255,0.045)" : "1px solid rgba(255,255,255,0.08)",
-    borderRadius: 8,
-    padding: quiet ? "7px 9px" : "8px 10px",
-    textAlign: "right",
-    color: quiet ? "rgba(238,235,229,0.72)" : "var(--jpgs-text)",
-    background: quiet ? "rgba(255,255,255,0.01)" : "rgba(255,255,255,0.018)",
-    fontFamily: "var(--font-geist-mono)",
-    fontSize: quiet ? 11 : 12,
-  };
-}
+const signalLeanTagStyle: React.CSSProperties = {
+  flex: "0 0 auto",
+  border: "1px solid rgba(255,255,255,0.09)",
+  borderRadius: 999,
+  padding: "4px 10px",
+  background: "rgba(255,255,255,0.05)",
+  color: "rgba(238,235,229,0.72)",
+  fontSize: 11,
+  whiteSpace: "nowrap",
+};
 
-function signalMetricLabelStyle(quiet: boolean): React.CSSProperties {
-  return {
-    display: "block",
-    color: quiet ? "rgba(168,164,157,0.68)" : "var(--jpgs-muted)",
-    fontFamily: "var(--font-geist-sans)",
-    fontSize: 10,
-    marginBottom: 3,
-  };
-}
+const signalBarGridStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 8,
+  marginTop: 4,
+};
+
+const signalBarRowStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 5,
+};
+
+const signalBarHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "baseline",
+  gap: 8,
+};
+
+const signalBarNameStyle: React.CSSProperties = {
+  color: "var(--jpgs-muted)",
+  fontSize: 12,
+  flexShrink: 0,
+};
+
+const signalBarStatStyle: React.CSSProperties = {
+  color: "var(--jpgs-muted)",
+  fontSize: 11,
+  fontFamily: "var(--font-geist-mono)",
+  textAlign: "right",
+};
+
+const signalBarTrackStyle: React.CSSProperties = {
+  height: 4,
+  borderRadius: 99,
+  background: "rgba(255,255,255,0.07)",
+  overflow: "hidden",
+};
+
+const signalBarFillStyle: React.CSSProperties = {
+  height: "100%",
+  borderRadius: 99,
+  transition: "width 0.3s ease",
+};
 
 const exampleLineStyle: React.CSSProperties = {
   color: "var(--jpgs-muted)",
