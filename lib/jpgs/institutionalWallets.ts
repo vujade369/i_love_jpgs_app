@@ -19,10 +19,41 @@ export type InstitutionalWalletCandidate = {
 type InstitutionalSignal = {
   score: number;
   hardTerms: Set<string>;
-  softTerms: Set<string>;
+  conditionalTerms: Set<string>;
+  conditionalWeakProfile: boolean;
   addressLikeWeakProfile: boolean;
   weakProfile: boolean;
 };
+
+// Known non-human project/infrastructure wallets that won't match keyword heuristics.
+// Matched by lowercase address, username, or ENS — checked before scoring.
+type KnownNonHumanWallet = {
+  addresses?: string[];
+  usernames?: string[];
+  ens?: string[];
+  reason: string;
+};
+
+const KNOWN_NON_HUMAN_WALLETS: KnownNonHumanWallet[] = [
+  {
+    usernames: ["the-barn"],
+    ens: ["barn.harv.eth"],
+    reason: "known project burn wallet",
+  },
+];
+
+const KNOWN_NON_HUMAN_WALLET_MAP = new Map<string, string>();
+for (const entry of KNOWN_NON_HUMAN_WALLETS) {
+  for (const address of entry.addresses ?? []) {
+    KNOWN_NON_HUMAN_WALLET_MAP.set(address.toLowerCase(), entry.reason);
+  }
+  for (const username of entry.usernames ?? []) {
+    KNOWN_NON_HUMAN_WALLET_MAP.set(username.toLowerCase(), entry.reason);
+  }
+  for (const ens of entry.ens ?? []) {
+    KNOWN_NON_HUMAN_WALLET_MAP.set(ens.toLowerCase(), entry.reason);
+  }
+}
 
 const HARD_INSTITUTIONAL_TERMS = [
   "marketplace",
@@ -38,9 +69,6 @@ const HARD_INSTITUTIONAL_TERMS = [
   "auction",
   "bulk",
   "museum",
-];
-
-const SOFT_INSTITUTIONAL_TERMS = [
   "treasury",
   "fund",
   "multisig",
@@ -49,12 +77,20 @@ const SOFT_INSTITUTIONAL_TERMS = [
   "team wallet",
   "project wallet",
   "official wallet",
-  "cold wallet",
-  "storage",
-  "holdings",
   "reserve",
+  "burn wallet",
+  "burn address",
+  "sink wallet",
+];
+
+// Only contribute score when no profile image AND (address-like name OR no readable human name).
+// Bio is intentionally excluded — many real collectors have no bio.
+const CONDITIONAL_INSTITUTIONAL_TERMS = [
   "vault",
   "safe",
+  "storage",
+  "holdings",
+  "cold wallet",
 ];
 
 const GENERIC_URL_SEGMENTS = new Set([
@@ -68,13 +104,35 @@ const GENERIC_URL_SEGMENTS = new Set([
 const ADDRESS_LIKE_RE = /^0x[a-f0-9]{4}/i;
 const GENERIC_BIO_RE = /^(no bio found|no bio|bio unavailable)$/i;
 
+function knownNonHumanWalletReason(candidate: InstitutionalWalletCandidate): string | null {
+  const identities = [
+    candidate.address,
+    candidate.wallet,
+    candidate.username,
+    candidate.openseaUsername,
+    candidate.ens,
+  ];
+  for (const value of identities) {
+    const normalized = value?.trim().toLowerCase();
+    if (normalized) {
+      const reason = KNOWN_NON_HUMAN_WALLET_MAP.get(normalized);
+      if (reason) return reason;
+    }
+  }
+  return null;
+}
+
 export function looksInstitutionalCollector(candidate: InstitutionalWalletCandidate): boolean {
+  if (knownNonHumanWalletReason(candidate)) return true;
   return scoreInstitutionalSignals(candidate).score >= 2;
 }
 
 export function getInstitutionalWalletReason(
   candidate: InstitutionalWalletCandidate,
 ): string | null {
+  const knownReason = knownNonHumanWalletReason(candidate);
+  if (knownReason) return knownReason;
+
   const signal = scoreInstitutionalSignals(candidate);
 
   if (signal.score < 2) return null;
@@ -95,15 +153,24 @@ export function getInstitutionalWalletReason(
     return "marketplace/delegate signal";
   }
   if (signal.hardTerms.has("museum")) return "museum/institutional signal";
-  if (signal.softTerms.has("treasury") || signal.softTerms.has("fund")) {
+  if (
+    signal.hardTerms.has("treasury") ||
+    signal.hardTerms.has("fund") ||
+    signal.hardTerms.has("reserve")
+  ) {
     return "treasury/fund language";
   }
   if (
-    (signal.softTerms.has("storage") ||
-      signal.softTerms.has("vault") ||
-      signal.softTerms.has("safe")) &&
-    signal.weakProfile
+    signal.hardTerms.has("dao") ||
+    signal.hardTerms.has("multisig") ||
+    signal.hardTerms.has("multi-sig") ||
+    signal.hardTerms.has("team wallet") ||
+    signal.hardTerms.has("project wallet") ||
+    signal.hardTerms.has("official wallet")
   ) {
+    return "project/org language";
+  }
+  if (signal.conditionalTerms.size > 0 && signal.conditionalWeakProfile) {
     return "storage/vault language with weak profile";
   }
   if (signal.addressLikeWeakProfile) return "address-like profile with weak human signal";
@@ -114,7 +181,7 @@ export function getInstitutionalWalletReason(
 function scoreInstitutionalSignals(candidate: InstitutionalWalletCandidate): InstitutionalSignal {
   const searchableText = collectSearchableText(candidate).join(" ").toLowerCase();
   const hardTerms = matchingTerms(searchableText, HARD_INSTITUTIONAL_TERMS);
-  const softTerms = matchingTerms(searchableText, SOFT_INSTITUTIONAL_TERMS);
+  const conditionalTerms = matchingTerms(searchableText, CONDITIONAL_INSTITUTIONAL_TERMS);
   const hasProfileImage = Boolean(
     textValue(candidate.avatarUrl) ||
       textValue(candidate.profileImageUrl) ||
@@ -140,17 +207,22 @@ function scoreInstitutionalSignals(candidate: InstitutionalWalletCandidate): Ins
       isAddressLike(textValue(value)),
     );
   const weakProfile = !hasProfileImage && !hasSocialPresence;
+  // Conditional terms only score when the profile is clearly non-human: no avatar plus
+  // address-like identity or no readable name. Bio is excluded from this check.
+  const conditionalWeakProfile =
+    addressLikeWeakProfile || (!hasProfileImage && !hasReadableProfileName);
 
   let score = 0;
   if (hardTerms.size > 0) score += 2;
-  if (softTerms.size > 0) score += 1;
+  if (conditionalTerms.size > 0 && conditionalWeakProfile) score += 1;
   if (addressLikeWeakProfile) score += 1;
   if (weakProfile && !hasReadableProfileName && !hasHumanBio) score += 1;
 
   return {
     score,
     hardTerms,
-    softTerms,
+    conditionalTerms,
+    conditionalWeakProfile,
     addressLikeWeakProfile,
     weakProfile,
   };

@@ -4,9 +4,13 @@ import {
   hydrateAccountIdentities,
   type CollectionRef,
 } from "@/lib/jpgs/holderDiscovery";
+import {
+  looksInstitutionalCollector,
+  getInstitutionalWalletReason,
+} from "@/lib/jpgs/institutionalWallets";
 
 const MAX_COLLECTIONS = 22;
-const MAX_COLLECTORS = 5;
+const MAX_COLLECTORS = 20;
 const MIN_SHARED_COLLECTIONS = 2;
 const WALLET_RE = /^0x[a-fA-F0-9]{40}$/;
 
@@ -107,6 +111,17 @@ export async function POST(req: NextRequest) {
   const collectors = matches.map((wallet) => {
     const identity = hydration.identities.get(wallet.address.toLowerCase());
     const profileUrl = identity?.openSeaUrl ?? identity?.openseaProfileUrl ?? `https://opensea.io/${wallet.address}`;
+    const institutionalCandidate = {
+      ens: identity?.ens ?? null,
+      displayName: identity?.displayName ?? null,
+      username: identity?.username ?? null,
+      openseaUsername: identity?.username ?? null,
+      avatarUrl: identity?.avatarUrl ?? null,
+      profileImageUrl: identity?.profileImageUrl ?? null,
+      imageUrl: identity?.imageUrl ?? null,
+      openSeaUrl: profileUrl,
+      openseaProfileUrl: profileUrl,
+    };
 
     return {
       address: wallet.address,
@@ -128,6 +143,8 @@ export async function POST(req: NextRequest) {
         wallet.matchedCollectionCount === 1
           ? "Seen across 1 shared collection"
           : `Seen across ${wallet.matchedCollectionCount} shared collections`,
+      isInstitutionalWallet: looksInstitutionalCollector(institutionalCandidate),
+      institutionalWalletReason: getInstitutionalWalletReason(institutionalCandidate),
     };
   });
 

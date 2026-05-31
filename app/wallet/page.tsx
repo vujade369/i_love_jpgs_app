@@ -3,7 +3,6 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { BrandLockup } from "@/components/BrandLockup";
 import { WalletSearchInput, walletSuggestionValue, type WalletSuggestion } from "@/components/WalletSearchInput";
-import { looksInstitutionalCollector } from "@/lib/jpgs/institutionalWallets";
 
 type TopCollection = {
   slug: string;
@@ -118,6 +117,8 @@ type SimilarCollector = {
   sharedCollectionCount: number;
   totalHeldFromSelected: number;
   reason: string;
+  isInstitutionalWallet: boolean;
+  institutionalWalletReason: string | null;
 };
 
 type SimilarCollectorsResponse = {
@@ -309,8 +310,7 @@ export default function WalletReadPage() {
         const data = (await res.json()) as SimilarCollectorsResponse;
         if (!controller.signal.aborted) {
           const meaningfulCollectors = (data.collectors ?? [])
-            .filter((collector) => collector.sharedCollectionCount >= MIN_SIMILAR_COLLECTOR_SHARED_COLLECTIONS)
-            .slice(0, SIMILAR_COLLECTOR_DISPLAY_LIMIT);
+            .filter((collector) => collector.sharedCollectionCount >= MIN_SIMILAR_COLLECTOR_SHARED_COLLECTIONS);
           setSimilarCollectors(meaningfulCollectors);
         }
       } catch {
@@ -378,10 +378,13 @@ export default function WalletReadPage() {
   const atWalletLimit = walletSet.length >= MAX_WALLETS;
   const activeReadLabel = readLabelForView(walletSet, activeView);
   const sourceCollectors = similarCollectors;
-  const visibleCollectors = hideInstitutional
-    ? sourceCollectors.filter((collector) => !looksInstitutionalCollector(collector))
-    : sourceCollectors;
-  const hiddenInstitutionalCollectorCount = sourceCollectors.length - visibleCollectors.length;
+  const visibleCollectors = (hideInstitutional
+    ? sourceCollectors.filter((collector) => !collector.isInstitutionalWallet)
+    : sourceCollectors
+  ).slice(0, SIMILAR_COLLECTOR_DISPLAY_LIMIT);
+  const hiddenInstitutionalCollectorCount = hideInstitutional
+    ? sourceCollectors.filter((c) => c.isInstitutionalWallet).length
+    : 0;
 
   return (
     <main className="min-h-screen" style={{ background: "var(--jpgs-bg)", color: "var(--jpgs-text)" }}>
@@ -656,8 +659,8 @@ export default function WalletReadPage() {
                     </p>
                   )}
                   <div style={similarCollectorGridStyle}>
-                    {visibleCollectors.map((collector) => (
-                      <SimilarCollectorCard key={collector.address} collector={collector} />
+                    {visibleCollectors.map((collector, index) => (
+                      <SimilarCollectorCard key={collector.address} collector={collector} rank={index + 1} />
                     ))}
                   </div>
                 </Panel>
@@ -1289,7 +1292,7 @@ function CollectionImage({ collection, size = 56 }: { collection: TopCollection;
   );
 }
 
-function SimilarCollectorCard({ collector }: { collector: SimilarCollector }) {
+function SimilarCollectorCard({ collector, rank }: { collector: SimilarCollector; rank: number }) {
   const [avatarFailed, setAvatarFailed] = useState(false);
   const label = collector.ens || collector.displayName || collector.username || collector.shortWallet;
   const secondaryIdentity = collector.username
@@ -1333,14 +1336,19 @@ function SimilarCollectorCard({ collector }: { collector: SimilarCollector }) {
       </a>
 
       <div style={{ minWidth: 0, flex: 1 }}>
-        <a
-          href={openSeaUrl}
-          target="_blank"
-          rel="noreferrer"
-          style={similarCollectorNameStyle}
-        >
-          {label}
-        </a>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+          <span style={{ fontSize: 10, color: "rgba(168,164,157,0.4)", fontFamily: "var(--font-geist-mono)", flexShrink: 0 }}>
+            #{rank}
+          </span>
+          <a
+            href={openSeaUrl}
+            target="_blank"
+            rel="noreferrer"
+            style={similarCollectorNameStyle}
+          >
+            {label}
+          </a>
+        </div>
         {secondaryIdentity && (
           <p style={similarCollectorIdentityStyle}>{secondaryIdentity}</p>
         )}

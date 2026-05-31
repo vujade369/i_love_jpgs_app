@@ -3,7 +3,6 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { BrandLockup } from "@/components/BrandLockup";
-import { looksInstitutionalCollector } from "@/lib/jpgs/institutionalWallets";
 
 type CollectionRef = {
   slug: string;
@@ -38,6 +37,8 @@ type CollectorWallet = {
   totalHeldFromSelected: number;
   score: number;
   reason: string;
+  isInstitutionalWallet: boolean;
+  institutionalWalletReason: string | null;
 };
 
 type DiscoverResponse = {
@@ -130,7 +131,7 @@ function ResultsInner() {
 
   const sourceWallets = wallets;
   const visibleWallets = hideInstitutional
-    ? sourceWallets.filter((wallet) => !looksInstitutionalCollector(wallet))
+    ? sourceWallets.filter((wallet) => !wallet.isInstitutionalWallet)
     : sourceWallets;
   const hiddenInstitutionalCount = sourceWallets.length - visibleWallets.length;
 
@@ -281,8 +282,8 @@ function ResultsInner() {
               </p>
             )}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {visibleWallets.slice(0, visibleCount).map((wallet) => (
-                <CollectorCard key={wallet.address} wallet={wallet} />
+              {visibleWallets.slice(0, visibleCount).map((wallet, index) => (
+                <CollectorCard key={wallet.address} wallet={wallet} rank={index + 1} />
               ))}
             </div>
             {visibleWallets.length > visibleCount && (
@@ -312,7 +313,7 @@ function ResultsInner() {
   );
 }
 
-function CollectorCard({ wallet }: { wallet: CollectorWallet }) {
+function CollectorCard({ wallet, rank }: { wallet: CollectorWallet; rank: number }) {
   const [avatarFailed, setAvatarFailed] = useState(false);
   const shortWallet = shortAddress(wallet.address);
   const label = wallet.ens || wallet.displayName || wallet.username || shortWallet;
@@ -372,6 +373,9 @@ function CollectorCard({ wallet }: { wallet: CollectorWallet }) {
 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 4 }}>
+          <span style={{ fontSize: 10, color: "rgba(168,164,157,0.4)", fontFamily: "monospace", flexShrink: 0 }}>
+            #{rank}
+          </span>
           <a
             href={openSeaUrl}
             target="_blank"

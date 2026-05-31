@@ -5,8 +5,12 @@ import {
   type CollectionRef,
   ACCOUNT_HYDRATION_CONCURRENCY,
 } from "@/lib/jpgs/holderDiscovery";
+import {
+  looksInstitutionalCollector,
+  getInstitutionalWalletReason,
+} from "@/lib/jpgs/institutionalWallets";
 
-const DISCOVER_COLLECTOR_RESULT_LIMIT = 20;
+const DISCOVER_COLLECTOR_RESULT_LIMIT = 50;
 
 type DiscoverBody = { collections: CollectionRef[] };
 
@@ -51,6 +55,17 @@ export async function POST(req: NextRequest) {
       wallet.matchedCollectionCount === 1
         ? "Holds 1 of your selected collections."
         : `Holds ${wallet.matchedCollectionCount} of your selected collections.`;
+    const institutionalCandidate = {
+      ens: identity?.ens ?? null,
+      displayName: identity?.displayName ?? null,
+      username: identity?.username ?? null,
+      openseaUsername: identity?.username ?? null,
+      avatarUrl: identity?.avatarUrl ?? null,
+      profileImageUrl: identity?.profileImageUrl ?? null,
+      imageUrl: identity?.imageUrl ?? null,
+      openSeaUrl: profileUrl,
+      openseaProfileUrl: profileUrl,
+    };
 
     return {
       address: wallet.address,
@@ -71,6 +86,8 @@ export async function POST(req: NextRequest) {
       totalHeldFromSelected: wallet.totalHeldFromSelected,
       score,
       reason,
+      isInstitutionalWallet: looksInstitutionalCollector(institutionalCandidate),
+      institutionalWalletReason: getInstitutionalWalletReason(institutionalCandidate),
     };
   });
 
